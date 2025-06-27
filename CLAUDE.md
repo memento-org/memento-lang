@@ -62,3 +62,9 @@ Memento Compiler (mmtc) is a compiler for the Memento programming language that 
 - Language extensions are explicitly declared per module
 - Import structure follows: Data.Kind, project modules, then instances
 - Ensure all new AST types implement HFunctor and IsVoidIn as appropriate
+
+## Repository Author's Preferences
+
+- Pay close attention to notices and coding guidelines
+- Respect the established architectural patterns and design principles
+- Carefully implement new features to maintain type safety and consistency
