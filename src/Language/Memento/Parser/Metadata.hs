@@ -1,16 +1,17 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE PolyKinds        #-}
+{-# LANGUAGE RankNTypes       #-}
 
 module Language.Memento.Parser.Metadata (parseMetadata) where
 
-import Data.Text (Text)
-import Language.Memento.Data.AST.Metadata (Metadata (Metadata))
-import Language.Memento.Data.Functor.Product.Higher (Constructive (hConstruct))
-import Text.Megaparsec (MonadParsec, getSourcePos)
+import           Data.Text                                    (Text)
+import           Language.Memento.Data.AST.Metadata           (Metadata (Metadata))
+import           Language.Memento.Data.Functor.Product.Higher (HConstructive (hConstruct))
+import           Text.Megaparsec                              (MonadParsec,
+                                                               getSourcePos)
 
 parseMetadata ::
-  (Constructive Metadata h h', MonadParsec s Text m) => m (h f a) -> m (h' f a)
+  (HConstructive Metadata h h', MonadParsec s Text m) => m (h f a) -> m (h' f a)
 parseMetadata p = do
   startPos <- getSourcePos
   a <- p

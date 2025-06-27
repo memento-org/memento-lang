@@ -14,11 +14,11 @@ import           Language.Memento.Data.AST.Metadata              (Metadata,
                                                                   propagateMetadata)
 import           Language.Memento.Data.Functor.Combinator.Higher (Wapper,
                                                                   quantify, tie)
-import           Language.Memento.Data.Functor.Coproduct.Higher  (Injective (hInject))
+import           Language.Memento.Data.Functor.Coproduct.Higher  (HInjective (hInject))
 import           Language.Memento.Data.Functor.FixedPoint.Higher (HFix (HFix),
                                                                   extractHFix)
-import           Language.Memento.Data.Functor.Product.Higher    (Constructive (hConstruct),
-                                                                  Extractive,
+import           Language.Memento.Data.Functor.Product.Higher    (HConstructive (hConstruct),
+                                                                  HExtractive,
                                                                   HProduct,
                                                                   hSingleton)
 import           Language.Memento.Parser.Definition              (parseDefinition)
@@ -47,12 +47,13 @@ x r =
 
 type Parser = Parsec Void Text
 
--- | inject to Coproduct of Syntax, then also inject to Product of [Syntax] (hSingleton)
--- | , then append metadata, finally wrap by HFix
+{- | inject to Coproduct of Syntax, then also inject to Product of [Syntax] (hSingleton)
+| , then append metadata, finally wrap by HFix
+-}
 wrapper ::
   forall h h2 s m.
-  ( Constructive Metadata (HProduct '[Syntax]) h
-  , Injective h2 Syntax
+  ( HConstructive Metadata (HProduct '[Syntax]) h
+  , HInjective h2 Syntax
   , MonadParsec s Text m
   ) =>
   Wapper m h2 (HFix h)
@@ -60,31 +61,36 @@ wrapper p = HFix <$> parseMetadata (hSingleton . (hInject @_ @h2 @Syntax) <$> p)
 
 -- | Propagate metadata
 propagate ::
-  forall h h2 a .
-  ( Constructive Metadata (HProduct '[Syntax]) h
-  , Injective h2 Syntax
-  , Extractive Metadata h
+  forall h h2 a.
+  ( HConstructive Metadata (HProduct '[Syntax]) h
+  , HInjective h2 Syntax
+  , HExtractive Metadata h
   ) =>
-  (HFix h a -> HFix h a -> h2 (HFix h) a) -> HFix h a -> HFix h a -> HFix h a
+  (HFix h a -> HFix h a -> h2 (HFix h) a) ->
+  HFix h a ->
+  HFix h a ->
+  HFix h a
 propagate f left right =
   let
     leftMeta = extractHFix left
     rightMeta = extractHFix right
     propagatedMeta = propagateMetadata leftMeta rightMeta
-  in
+   in
     HFix $
-      hConstruct propagatedMeta $ hSingleton $ hInject @_ @h2 @Syntax $ f left right
-
+      hConstruct propagatedMeta $
+        hSingleton $
+          hInject @_ @h2 @Syntax $
+            f left right
 
 parseAST :: forall x. (Typeable x) => Parser (AST x)
 parseAST = tie $ \r ->
   quantify (parseLiteral wrapper r)
-  <|> quantify (parseMType wrapper r)
-  <|> quantify (parsePattern wrapper r)
-  <|> quantify (parseDefinition wrapper r)
-  <|> quantify (parseProgram wrapper r)
-  <|> quantify (parseVariable wrapper r)
-  <|> quantify (parseTypeVariable wrapper r)
-  <|> quantify (parseExpr wrapper propagate r)
-  <|> quantify (parseLet wrapper r)
-  <|> quantify (parseBlock wrapper r)
+    <|> quantify (parseMType wrapper r)
+    <|> quantify (parsePattern wrapper r)
+    <|> quantify (parseDefinition wrapper r)
+    <|> quantify (parseProgram wrapper r)
+    <|> quantify (parseVariable wrapper r)
+    <|> quantify (parseTypeVariable wrapper r)
+    <|> quantify (parseExpr wrapper propagate r)
+    <|> quantify (parseLet wrapper r)
+    <|> quantify (parseBlock wrapper r)

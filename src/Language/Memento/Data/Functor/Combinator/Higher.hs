@@ -11,11 +11,11 @@ import           Control.Applicative                            (Alternative (em
 import           Data.Typeable                                  (Typeable, eqT,
                                                                  type (:~:) (Refl))
 import           GHC.Base                                       (Alternative ((<|>)))
-import           Language.Memento.Data.Functor.Coproduct.Higher (Injective (hInject))
+import           Language.Memento.Data.Functor.Coproduct.Higher (HInjective (hInject))
 
 type Family m f = forall x. (Typeable x) => m (f x)
 
-type Wapper m h f = forall a.  m (h f a) -> m (f a)
+type Wapper m h f = forall a. m (h f a) -> m (f a)
 
 -- | Extend a process (exclusively parser) from some type `a` to all types `x`. (if a /= x, then empty)
 quantify ::
@@ -36,7 +36,7 @@ infixr 4 <:>
 -- | Cons a branch to a parser
 (<:>) ::
   forall h h' m f.
-  (Alternative m, Injective h h') =>
+  (Alternative m, HInjective h h') =>
   Family m (h f) ->
   Family m (h' f) ->
   Family m (h' f)

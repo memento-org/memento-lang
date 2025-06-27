@@ -1,15 +1,15 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Language.Memento.Data.Functor.Op (
   Op (..),
@@ -17,8 +17,9 @@ module Language.Memento.Data.Functor.Op (
   ReduceCoproduct (..),
 ) where
 
-import Language.Memento.Data.Functor.Coproduct (Coproduct, (:+:) (..))
-import Language.Memento.Data.Functor.Product (Product, UnitF (..), (:*:) (..))
+import           Language.Memento.Data.Functor.Coproduct (Coproduct, (:+:) (..))
+import           Language.Memento.Data.Functor.Product   (Product, UnitF (..),
+                                                          (:*:) (..))
 
 -- | Wrapper to make Op work with Product
 newtype Op f r a = Op (f a -> r)
@@ -39,5 +40,5 @@ instance ReduceCoproduct '[] r where
 -- Recursive case: non-empty coproduct
 instance (ReduceCoproduct fs r) => ReduceCoproduct (f ': fs) r where
   reduceCoproduct (Op handler :*: handlers) coproduct = case coproduct of
-    InjL fa -> handler fa
+    InjL fa   -> handler fa
     InjR rest -> reduceCoproduct @fs @r handlers rest

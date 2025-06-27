@@ -1,27 +1,22 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
-module Main where
+module Main (main) where
 
-import           Control.Monad              (unless, when)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import qualified Data.Text.IO               as TIO
-import           Language.Memento.Data.AST.Tag              (KProgram)
-import           Language.Memento.Parser                    (parseAST)
-import           System.Environment         (getArgs)
-import           System.Exit                (exitFailure, exitSuccess)
-import           System.IO                  (hPutStrLn, stderr)
-import           Text.Megaparsec            (ParseErrorBundle, errorBundlePretty,
-                                             parse)
-import           Text.Megaparsec.Error      (ShowErrorComponent)
+import qualified Data.Text.IO                  as TIO
+import           Language.Memento.Data.AST.Tag (KProgram)
+import           Language.Memento.Parser       (parseAST)
+import           System.Environment            (getArgs)
+import           System.Exit                   (exitFailure, exitSuccess)
+import           System.IO                     (hPutStrLn, stderr)
+import           Text.Megaparsec               (errorBundlePretty, parse)
 
 -- | Main entry point for the Memento compiler
 main :: IO ()
 main = do
   args <- getArgs
   case args of
-    []     -> do
+    [] -> do
       hPutStrLn stderr "Usage: memento-compiler <command> [options]"
       hPutStrLn stderr ""
       hPutStrLn stderr "Commands:"
@@ -32,18 +27,14 @@ main = do
       hPutStrLn stderr "Examples:"
       hPutStrLn stderr "  memento-compiler parse example.mmt"
       exitFailure
-    
     ["parse", filePath] -> do
       parseCommand filePath
-    
     ["check", _] -> do
       hPutStrLn stderr "Type checking is not yet implemented."
       exitFailure
-      
     ["compile", _] -> do
       hPutStrLn stderr "Code generation is not yet implemented."
       exitFailure
-      
     _ -> do
       hPutStrLn stderr "Invalid command. Run 'memento-compiler' without arguments for usage."
       exitFailure
@@ -53,17 +44,16 @@ parseCommand :: FilePath -> IO ()
 parseCommand filePath = do
   putStrLn $ "Parsing: " ++ filePath
   putStrLn $ replicate 60 '-'
-  
+
   -- Read the file
   contents <- TIO.readFile filePath
-  
+
   -- Parse the file
   case parse (parseAST @KProgram) filePath contents of
     Left errorBundle -> do
       hPutStrLn stderr "Parse error:"
       hPutStrLn stderr $ errorBundlePretty errorBundle
       exitFailure
-      
     Right ast -> do
       putStrLn "Parse successful!"
       putStrLn ""

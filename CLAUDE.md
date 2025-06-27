@@ -65,9 +65,24 @@ Memento Compiler (mmtc) is a compiler for the Memento programming language that 
 
 ## Repository Author's Preferences
 
+### Coding Style
+
+- **Avoid top-level case splitting**: Prefer using `\case` over top-level case expressions
+- **Pattern matching**: Use lambda case expressions for cleaner code
+
+### Architecture Principles
+
+- **Composability**: Design components to be composable and reusable
+- **Type safety**: Leverage Haskell's type system for correctness
+- **Maintainability**: Write code that is easy to understand and modify
+- **Correctness over convenience**: Prioritize correctness in implementation
+
+### Development Guidelines
+
 - Pay close attention to notices and coding guidelines
 - Respect the established architectural patterns and design principles
 - Carefully implement new features to maintain type safety and consistency
+- Follow existing patterns when adding new AST nodes or parser components
 
 ## Compiler Usage
 
@@ -113,6 +128,7 @@ stack run -- parse example/basic/syntax.mmt
 ### Syntax Reference
 
 #### Data Type Definitions
+
 ```memento
 data Option {
   fn Some<T>(value: T) -> Option<T>,
@@ -121,6 +137,7 @@ data Option {
 ```
 
 #### Function Definitions
+
 ```memento
 // Regular function
 fn add(a: number, b: number) -> number {
@@ -137,6 +154,7 @@ fn map<T, U>(f: fn (x: T) -> U, opt: Option<T>) -> Option<U> {
 ```
 
 #### Value Definitions
+
 ```memento
 // Simple value
 val x: number = 42;
@@ -148,12 +166,14 @@ val increment: fn (x: number) -> number = fn (x: number) -> {
 ```
 
 #### Lambda Expressions
+
 ```memento
 fn (x: number) -> x + 1
 fn (x: number, y: number) -> { x + y }
 ```
 
 #### Switch/Pattern Matching
+
 ```memento
 switch (expr) {
   case (Some(x)) -> x,

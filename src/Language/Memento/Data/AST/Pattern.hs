@@ -1,24 +1,26 @@
-{-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE InstanceSigs          #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Language.Memento.Data.AST.Pattern (Pattern (..)) where
 
-import Data.Kind (Type)
-import GHC.Base (List)
-import Language.Memento.Data.AST.Tag (KLiteral, KPattern, KVariable)
-import Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
-import Language.Memento.Data.Functor.Higher (HFunctor (hmap))
-import Language.Memento.Data.NaturalTransformation (type (~>))
-import Language.Memento.Data.Type.NonEq (type (/~))
+import           Data.Kind                                      (Type)
+import           GHC.Base                                       (List)
+import           Language.Memento.Data.AST.Tag                  (KLiteral,
+                                                                 KPattern,
+                                                                 KVariable)
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
+import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
+import           Language.Memento.Data.NaturalTransformation    (type (~>))
+import           Language.Memento.Data.Type.NonEq               (type (/~))
 
 -- | Pattern represents a pattern in pattern matching
 data Pattern (f :: Type -> Type) (a :: Type) where

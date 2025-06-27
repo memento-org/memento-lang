@@ -1,20 +1,16 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-module Language.Memento.Data.Type.NonEq (type (/~)) where
+module Language.Memento.Data.Type.NonEq (
+  type (/~),
+) where
 
-import GHC.Base (Constraint, Type)
-import GHC.TypeError (
-  ErrorMessage (ShowType, Text, (:<>:)),
-  TypeError,
- )
+import           Data.Kind    (Constraint)
+import           GHC.TypeLits (ErrorMessage (..), TypeError)
 
-type family (a :: Type) /~ (b :: Type) :: Constraint where
-  a /~ a =
-    TypeError
-      ( 'Text "Type "
-          ':<>: 'ShowType a
-          ':<>: 'Text " is not allowed to be equal to itself."
-      )
-  _ /~ _ = () -- 任意の他の型は制約なし
+type family (/~) (a :: k) (b :: k) :: Constraint where
+  a /~ a = TypeError ('Text "Types are equal: " ':<>: 'ShowType a ':<>: 'Text " ~ " ':<>: 'ShowType a)
+  a /~ b = ()

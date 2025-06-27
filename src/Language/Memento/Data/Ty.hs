@@ -1,24 +1,25 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveFoldable        #-}
+{-# LANGUAGE DeriveFunctor         #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DeriveTraversable     #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module Language.Memento.Data.Ty (TyF (..), VarF (..), Ty, UnsolvedTy, tyFormatter, varFormatter, formatUnsolvedTy, formatTy) where
 
-import Data.Text (Text)
-import qualified Data.Text as T
-import GHC.Base (List)
-import Language.Memento.Data.Functor.Coproduct (Coproduct, absurdVoidF, (?:))
-import Language.Memento.Data.Functor.FixedPoint (Fix, foldFix)
+import           Data.Text                                (Text)
+import qualified Data.Text                                as T
+import           GHC.Base                                 (List)
+import           Language.Memento.Data.Functor.Coproduct  (Coproduct,
+                                                           absurdVoidF, (?:))
+import           Language.Memento.Data.Functor.FixedPoint (Fix, foldFix)
 
 -- Type representation
 data TyF r

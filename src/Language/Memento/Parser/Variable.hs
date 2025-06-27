@@ -17,16 +17,16 @@ import           Text.Megaparsec                                 (MonadParsec)
 
 -- | Parse a variable
 parseVariable ::
-  forall f m s. (MonadParsec s Text m, MonadFail m) => 
+  forall f m s. (MonadParsec s Text m, MonadFail m) =>
   Wapper m Variable f ->
-  Family m f -> 
+  Family m f ->
   m (f KVariable)
 parseVariable wrap _ = wrap $ Var <$> parseIdentifier
 
 -- | Parse a type variable
 parseTypeVariable ::
-  forall f m s. (MonadParsec s Text m, MonadFail m) => 
+  forall f m s. (MonadParsec s Text m, MonadFail m) =>
   Wapper m TypeVariable f ->
-  Family m f -> 
+  Family m f ->
   m (f KTypeVariable)
 parseTypeVariable wrap _ = wrap $ TypeVar <$> parseIdentifier

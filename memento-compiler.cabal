@@ -40,12 +40,17 @@ library
     Language.Memento.Data.AST.Tag
     Language.Memento.Data.AST.Variable
     Language.Memento.Data.Functor.Combinator.Higher
+    Language.Memento.Data.Functor.Coproduct
     Language.Memento.Data.Functor.Coproduct.Higher
+    Language.Memento.Data.Functor.FixedPoint
     Language.Memento.Data.Functor.FixedPoint.Higher
     Language.Memento.Data.Functor.Higher
+    Language.Memento.Data.Functor.Op
+    Language.Memento.Data.Functor.Product
     Language.Memento.Data.Functor.Product.Higher
     Language.Memento.Data.InternalType
     Language.Memento.Data.NaturalTransformation
+    Language.Memento.Data.Ty
     Language.Memento.Data.Type.NonEq
     Language.Memento.Data.TypedAST
     Language.Memento.Parser
