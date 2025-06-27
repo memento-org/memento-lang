@@ -21,6 +21,17 @@ description: Please see the README on GitHub at <https://github.com/githubuser/m
 
 dependencies:
   - base >= 4.7 && < 5
+  - megaparsec
+  - parser-combinators
+  - text
+  - mtl
+  - containers
+  - aeson
+  - directory
+  - filepath
+  - polysemy
+  - polysemy-plugin
+  - safe
 
 ghc-options:
   - -Wall

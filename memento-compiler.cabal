@@ -4,20 +4,20 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           memento-compiler
-version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/githubuser/memento-compiler#readme>
-homepage:       https://github.com/githubuser/memento-compiler#readme
-bug-reports:    https://github.com/githubuser/memento-compiler/issues
-author:         Yukikurage
-maintainer:     example@example.com
-copyright:      2025 Yukikurage
-license:        MIT
-license-file:   LICENSE
-build-type:     Simple
+name: memento-compiler
+version: 0.1.0.0
+description: Please see the README on GitHub at <https://github.com/githubuser/memento-compiler#readme>
+homepage: https://github.com/githubuser/memento-compiler#readme
+bug-reports: https://github.com/githubuser/memento-compiler/issues
+author: Yukikurage
+maintainer: example@example.com
+copyright: 2025 Yukikurage
+license: MIT
+license-file: LICENSE
+build-type: Simple
 extra-source-files:
-    README.md
-    CHANGELOG.md
+  README.md
+  CHANGELOG.md
 
 source-repository head
   type: git
@@ -25,37 +25,103 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+    Language.Memento.Backend.JS.Codegen
+    Language.Memento.Backend.JS.Data.IR
+    Language.Memento.Backend.WASM.Codegen
+    Language.Memento.Backend.WASM.Data.IR
+    Language.Memento.Data.AST
+    Language.Memento.Data.AST.BinOp
+    Language.Memento.Data.AST.Definition
+    Language.Memento.Data.AST.Expr
+    Language.Memento.Data.AST.Literal
+    Language.Memento.Data.AST.Metadata
+    Language.Memento.Data.AST.MType
+    Language.Memento.Data.AST.Pattern
+    Language.Memento.Data.AST.Program
+    Language.Memento.Data.AST.Tag
+    Language.Memento.Data.AST.Variable
+    Language.Memento.Data.Functor.Combinator.Higher
+    Language.Memento.Data.Functor.Coproduct.Higher
+    Language.Memento.Data.Functor.FixedPoint.Higher
+    Language.Memento.Data.Functor.Higher
+    Language.Memento.Data.Functor.Product.Higher
+    Language.Memento.Data.InternalType
+    Language.Memento.Data.NaturalTransformation
+    Language.Memento.Data.Type.NonEq
+    Language.Memento.Data.TypedAST
+    Language.Memento.Parser
+    Language.Memento.Parser.Core
+    Language.Memento.Parser.Definition
+    Language.Memento.Parser.Literal
+    Language.Memento.Parser.Metadata
+    Language.Memento.Parser.MType
+    Language.Memento.Parser.Pattern
+    Language.Memento.Parser.Program
+    Language.Memento.Parser.Variable
+    Lib
   other-modules:
-      Paths_memento_compiler
+    Paths_memento_compiler
   hs-source-dirs:
-      src
+    src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+    aeson,
+    base >=4.7 && <5,
+    containers,
+    directory,
+    filepath,
+    megaparsec,
+    mtl,
+    parser-combinators,
+    polysemy,
+    polysemy-plugin,
+    safe,
+    text
   default-language: Haskell2010
 
 executable memento-compiler-exe
   main-is: Main.hs
   other-modules:
-      Paths_memento_compiler
+    Paths_memento_compiler
   hs-source-dirs:
-      app
+    app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , memento-compiler
+    aeson,
+    base >=4.7 && <5,
+    containers,
+    directory,
+    filepath,
+    megaparsec,
+    memento-compiler,
+    mtl,
+    parser-combinators,
+    polysemy,
+    polysemy-plugin,
+    safe,
+    text
   default-language: Haskell2010
 
 test-suite memento-compiler-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_memento_compiler
+    Paths_memento_compiler
   hs-source-dirs:
-      test
+    test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , memento-compiler
+    aeson,
+    base >=4.7 && <5,
+    containers,
+    directory,
+    filepath,
+    megaparsec,
+    memento-compiler,
+    mtl,
+    parser-combinators,
+    polysemy,
+    polysemy-plugin,
+    safe,
+    text
   default-language: Haskell2010
