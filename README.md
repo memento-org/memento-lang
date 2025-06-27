@@ -4,10 +4,11 @@ The Memento Compiler is a compiler for the Memento programming language, targeti
 
 ## Features
 
-- **Type-safe AST** using GADTs and higher-kinded functors
-- **Extensible parser** with megaparsec
-- **Pattern matching** with exhaustiveness checking (planned)
-- **Effect system** for managing side effects (planned)
+- **Subtyping** via structual typing.
+- **Affine Algebraic Effects** for more composable programs.
+- **Reactive Programming** with asynchronous computation.
+- **Affine Types** and **Coeffect System** for better memory management.
+- **Algebraic Data & Pattern matching** with exhaustiveness checking (planned)
 - **Multiple backends**: JavaScript and WebAssembly (planned)
 
 ## Current Status
