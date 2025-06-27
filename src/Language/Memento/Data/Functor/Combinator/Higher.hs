@@ -1,18 +1,21 @@
-{-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ExplicitNamespaces  #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 
-module Language.Memento.Data.Functor.Combinator.Higher (quantify, (<:>), tie, Family) where
+module Language.Memento.Data.Functor.Combinator.Higher (quantify, (<:>), tie, Family, Wapper) where
 
-import Control.Applicative (Alternative (empty))
-import Data.Typeable (Typeable, eqT, type (:~:) (Refl))
-import GHC.Base (Alternative ((<|>)))
-import Language.Memento.Data.Functor.Coproduct.Higher (Injective (hInject))
+import           Control.Applicative                            (Alternative (empty))
+import           Data.Typeable                                  (Typeable, eqT,
+                                                                 type (:~:) (Refl))
+import           GHC.Base                                       (Alternative ((<|>)))
+import           Language.Memento.Data.Functor.Coproduct.Higher (Injective (hInject))
 
 type Family m f = forall x. (Typeable x) => m (f x)
+
+type Wapper m h f = forall a.  m (h f a) -> m (f a)
 
 -- | Extend a process (exclusively parser) from some type `a` to all types `x`. (if a /= x, then empty)
 quantify ::
@@ -26,7 +29,7 @@ quantify m = m'
   m' =
     case eqT @a @x of
       Just Refl -> m
-      Nothing -> empty
+      Nothing   -> empty
 
 infixr 4 <:>
 

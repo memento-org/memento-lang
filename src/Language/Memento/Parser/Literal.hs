@@ -1,33 +1,36 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Language.Memento.Parser.Literal (parseLiteral) where
 
-import Control.Applicative (Alternative ((<|>)))
-import Data.Text (Text)
-import qualified Data.Text as T
-import Language.Memento.Data.AST.Literal (Literal (BoolLiteral, IntLiteral, NumberLiteral, StringLiteral))
-import Language.Memento.Data.AST.Tag (KLiteral)
-import Language.Memento.Data.Functor.Combinator.Higher (Family)
-import Language.Memento.Parser.Core (parseLexeme, parseReservedWord)
-import Text.Megaparsec (MonadParsec (try), choice, manyTill, (<?>))
-import Text.Megaparsec.Char (char)
-import Text.Megaparsec.Char.Lexer as L (
-  charLiteral,
-  decimal,
-  float,
- )
+import           Control.Applicative                             (Alternative ((<|>)))
+import           Data.Text                                       (Text)
+import qualified Data.Text                                       as T
+import           Language.Memento.Data.AST.Literal               (Literal (BoolLiteral, IntLiteral, NumberLiteral, StringLiteral))
+import           Language.Memento.Data.AST.Tag                   (KLiteral)
+import           Language.Memento.Data.Functor.Combinator.Higher (Family,
+                                                                  Wapper)
+import           Language.Memento.Parser.Core                    (parseLexeme,
+                                                                  parseReservedWord)
+import           Text.Megaparsec                                 (MonadParsec (try),
+                                                                  choice,
+                                                                  manyTill,
+                                                                  (<?>))
+import           Text.Megaparsec.Char                            (char)
+import           Text.Megaparsec.Char.Lexer                      as L (charLiteral,
+                                                                       decimal,
+                                                                       float)
 
 parseLiteral ::
   forall f m s.
   (MonadParsec s Text m) =>
+  Wapper m Literal f ->
   Family m f -> -- Recursive
-  m (Literal f KLiteral)
-parseLiteral r =
+  m (f KLiteral)
+parseLiteral wrap r = wrap $
   choice
     [ try (parseNumberLiteral r) <?> "number literal"
     , try (parseBoolLiteral r) <?> "boolean literal"

@@ -1,35 +1,35 @@
-{-# LANGUAGE EmptyCase #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE EmptyCase             #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE InstanceSigs          #-}
+{-# LANGUAGE KindSignatures        #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Language.Memento.Data.AST.Definition (ConstructorDef (..), Definition (..)) where
 
-import Data.Bifunctor (Bifunctor (bimap))
-import Data.Functor ((<&>))
-import Data.Kind (Type)
-import GHC.Base (List)
-import Language.Memento.Data.AST.Tag (KBlock, KDefinition, KExpr, KType, KTypeVariable, KVariable)
-import Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
-import Language.Memento.Data.Functor.Higher (HFunctor (hmap))
-import Language.Memento.Data.NaturalTransformation (type (~>))
-import Language.Memento.Data.Type.NonEq (type (/~))
+import           Data.Bifunctor                                 (Bifunctor (bimap))
+import           Data.Functor                                   ((<&>))
+import           Data.Kind                                      (Type)
+import           GHC.Base                                       (List)
+import           Language.Memento.Data.AST.Tag                  (KBlock,
+                                                                 KDefinition,
+                                                                 KExpr, KType,
+                                                                 KTypeVariable,
+                                                                 KVariable)
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
+import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
+import           Language.Memento.Data.NaturalTransformation    (type (~>))
+import           Language.Memento.Data.Type.NonEq               (type (/~))
 
 -- Individual constructor definition for multi-constructor data types
 data ConstructorDef f
   = ConstructorDef
-      (f KVariable) -- Constructor name (e.g., Some)
-      (List (f KTypeVariable)) -- Constructor generics (e.g., [T])
-      (f KType) -- Constructor type (e.g., (x : T) => Maybe<T>)
-  | ConstructorFnDef
-      (f KVariable) -- Constructor name (e.g., None)
+       (f KVariable) -- Constructor name (e.g., None)
       (List (f KTypeVariable)) -- Constructor generics (e.g., [T])
       (List (f KVariable, f KType)) -- Function arguments (e.g., [T])
       (f KType) -- Return type (e.g., Maybe<T>)
@@ -79,9 +79,8 @@ instance HFunctor Definition where
         (f dataName)
         ( map
             ( \case
-                ConstructorDef name typeParams t -> ConstructorDef (f name) (map f typeParams) (f t)
-                ConstructorFnDef name typeParams args t ->
-                  ConstructorFnDef (f name) (map f typeParams) (args <&> bimap f f) (f t)
+                ConstructorDef name typeParams args t ->
+                  ConstructorDef (f name) (map f typeParams) (args <&> bimap f f) (f t)
             )
             constructors
         )

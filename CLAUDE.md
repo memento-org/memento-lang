@@ -68,3 +68,95 @@ Memento Compiler (mmtc) is a compiler for the Memento programming language that 
 - Pay close attention to notices and coding guidelines
 - Respect the established architectural patterns and design principles
 - Carefully implement new features to maintain type safety and consistency
+
+## Compiler Usage
+
+### Running the Compiler
+
+```bash
+# Parse a Memento source file
+stack run -- parse example.mmt
+
+# Or if installed:
+memento-compiler parse example.mmt
+```
+
+### Testing Parser
+
+```bash
+# Test with the provided example
+stack run -- parse example/basic/syntax.mmt
+```
+
+### Parser Implementation Notes
+
+1. **Expression Parser**: Located in `src/Language/Memento/Parser/Expr.hs`
+
+   - Supports binary operators with proper precedence using `makeExprParser`
+   - Function application with chaining: `f(x)(y)(z)`
+   - Lambda expressions: `fn (x: Type) -> body`
+   - Pattern matching: `switch (expr) [pattern -> result, ...]`
+   - Block expressions with let bindings
+
+2. **Propagate Function**: Used for metadata propagation in binary operators
+
+   - Signature: `(HFix h a -> HFix h a -> h2 (HFix h) a) -> HFix h a -> HFix h a -> HFix h a`
+   - Combines metadata from left and right operands
+
+3. **Adding New Syntax**: When adding new AST nodes:
+   - Add the constructor to the appropriate data type in `src/Language/Memento/Data/AST/`
+   - Add the type to the `Syntax` coproduct in `src/Language/Memento/Data/AST.hs`
+   - Implement HFunctor and IsVoidIn instances
+   - Create parser in appropriate module under `src/Language/Memento/Parser/`
+   - Add to `parseAST` in `src/Language/Memento/Parser.hs`
+
+### Syntax Reference
+
+#### Data Type Definitions
+```memento
+data Option {
+  fn Some<T>(value: T) -> Option<T>,
+  fn None<T>() -> Option<T>,
+};
+```
+
+#### Function Definitions
+```memento
+// Regular function
+fn add(a: number, b: number) -> number {
+  a + b
+};
+
+// Generic function
+fn map<T, U>(f: fn (x: T) -> U, opt: Option<T>) -> Option<U> {
+  switch (opt) {
+    case (Some(value)) -> Some(f(value)),
+    case (None()) -> None()
+  }
+};
+```
+
+#### Value Definitions
+```memento
+// Simple value
+val x: number = 42;
+
+// Function value
+val increment: fn (x: number) -> number = fn (x: number) -> {
+  x + 1
+};
+```
+
+#### Lambda Expressions
+```memento
+fn (x: number) -> x + 1
+fn (x: number, y: number) -> { x + y }
+```
+
+#### Switch/Pattern Matching
+```memento
+switch (expr) {
+  case (Some(x)) -> x,
+  case (None()) -> 0
+}
+```

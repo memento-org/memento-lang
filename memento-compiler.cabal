@@ -30,7 +30,6 @@ library
     Language.Memento.Backend.WASM.Codegen
     Language.Memento.Backend.WASM.Data.IR
     Language.Memento.Data.AST
-    Language.Memento.Data.AST.BinOp
     Language.Memento.Data.AST.Definition
     Language.Memento.Data.AST.Expr
     Language.Memento.Data.AST.Literal
@@ -52,6 +51,7 @@ library
     Language.Memento.Parser
     Language.Memento.Parser.Core
     Language.Memento.Parser.Definition
+    Language.Memento.Parser.Expr
     Language.Memento.Parser.Literal
     Language.Memento.Parser.Metadata
     Language.Memento.Parser.MType

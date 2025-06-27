@@ -8,14 +8,13 @@ module Language.Memento.Data.AST.Tag (
   KDefinition,
   KExpr,
   KPattern,
-  KBinOp,
   KProgram,
   KLet,
   KBlock,
 ) where
 
-import Data.Data (Typeable)
-import Data.Kind (Type)
+import           Data.Data (Typeable)
+import           Data.Kind (Type)
 
 {- Literals -}
 data KLiteral :: Type deriving (Typeable)
@@ -37,7 +36,6 @@ data KLet :: Type deriving (Typeable)
 data KExpr :: Type deriving (Typeable)
 data KBlock :: Type deriving (Typeable)
 data KPattern :: Type deriving (Typeable)
-data KBinOp :: Type deriving (Typeable)
 
 -- data KHandlerClause :: Type
 

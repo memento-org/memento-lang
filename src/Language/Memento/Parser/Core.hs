@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.Memento.Parser.Core (
@@ -16,27 +16,16 @@ module Language.Memento.Parser.Core (
   parseSymbol,
 ) where
 
-import qualified Control.Monad.State as State
-import Data.Functor (void)
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Void (Void)
-import Text.Megaparsec (
-  MonadParsec (notFollowedBy, try),
-  ParsecT,
-  between,
-  many,
-  (<|>),
- )
-import Text.Megaparsec.Char (
-  alphaNumChar,
-  char,
-  letterChar,
-  punctuationChar,
-  space1,
-  string,
-  symbolChar,
- )
+import qualified Control.Monad.State        as State
+import           Data.Functor               (void)
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import           Data.Void                  (Void)
+import           Text.Megaparsec            (MonadParsec (notFollowedBy, try),
+                                             ParsecT, between, many, (<|>))
+import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
+                                             punctuationChar, space1, string,
+                                             symbolChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = ParsecT Void Text (State.State Int)

@@ -1,24 +1,34 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Language.Memento.Parser.MType (parseMType) where
 
-import Data.Text (Text)
-import Language.Memento.Data.AST.MType (MType (TApplication, TBool, TFunction, TInt, TIntersection, TLiteral, TNever, TNumber, TString, TUnion, TUnknown, TVar))
-import Language.Memento.Data.AST.Tag (KLiteral, KType, KTypeVariable, KVariable)
-import Language.Memento.Data.Functor.Combinator.Higher (Family)
-import Language.Memento.Parser.Core (parseAngleBrackets, parseParens, parseReservedWord, parseSymbol)
-import Text.Megaparsec (MonadParsec, choice, many, sepBy, try, (<|>), (<?>))
+import           Data.Text                                       (Text)
+import           Language.Memento.Data.AST.MType                 (MType (TApplication, TBool, TFunction, TInt, TIntersection, TLiteral, TNever, TNumber, TString, TUnion, TUnknown, TVar))
+import           Language.Memento.Data.AST.Tag                   (KLiteral,
+                                                                  KType,
+                                                                  KTypeVariable,
+                                                                  KVariable)
+import           Language.Memento.Data.Functor.Combinator.Higher (Family,
+                                                                  Wapper)
+import           Language.Memento.Parser.Core                    (parseAngleBrackets,
+                                                                  parseParens,
+                                                                  parseReservedWord,
+                                                                  parseSymbol)
+import           Text.Megaparsec                                 (MonadParsec,
+                                                                  choice, many,
+                                                                  sepEndBy, try,
+                                                                  (<?>), (<|>))
 
 -- | Parse a type with union and intersection support
 parseMType ::
-  forall f m s. (MonadParsec s Text m) => 
-  (forall a. m (MType f a) -> m (f a)) -> -- wrapper function
-  Family m f -> 
-  m (MType f KType)
-parseMType wrap r = parseTypeUnion
+  forall f m s. (MonadParsec s Text m) =>
+  Wapper m MType f -> -- wrapper function
+  Family m f ->
+  m (f KType)
+parseMType wrap r = wrap parseTypeUnion
   where
     -- Parse union type: A | B | C (lowest precedence)
     parseTypeUnion = do
@@ -47,12 +57,13 @@ parseMType wrap r = parseTypeUnion
       try functionType <|> parseTypeAtom
       where
         functionType = do
+          parseReservedWord "fn"
           -- Parse argument types inside parentheses
-          args <- parseParens $ sepBy argumentPair (parseSymbol ",")
-          parseSymbol "=>"
+          args <- parseParens $ sepEndBy argumentPair (parseSymbol ",")
+          parseSymbol "->"
           ret <- r @KType
           return $ TFunction args ret
-        
+
         argumentPair = do
           name <- r @KVariable
           parseSymbol ":"
@@ -79,7 +90,7 @@ parseMType wrap r = parseTypeUnion
     -- Parse a type application like List<T> or Map<K, V>
     parseTypeApplication = do
       baseVar <- r @KTypeVariable
-      args <- parseAngleBrackets $ sepBy (r @KType) (parseSymbol ",")
+      args <- parseAngleBrackets $ sepEndBy (r @KType) (parseSymbol ",")
       return $ TApplication baseVar args
 
     -- Parse a primitive type

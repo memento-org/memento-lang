@@ -1,21 +1,37 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module Language.Memento.Parser.Definition (parseDefinition) where
 
-import Control.Applicative ((<|>))
-import Data.Text (Text)
-import GHC.List (List)
-import Language.Memento.Data.AST.Definition (ConstructorDef (ConstructorDef, ConstructorFnDef), Definition (DataDef, FnDef, TypeDef, ValDef))
-import Language.Memento.Data.AST.Tag (KBlock, KDefinition, KExpr, KType, KTypeVariable, KVariable)
-import Language.Memento.Data.Functor.Combinator.Higher (Family)
-import Language.Memento.Parser.Core (parseAngleBrackets, parseBrackets, parseParens, parseReservedWord, parseSymbol)
-import Text.Megaparsec (MonadParsec, choice, sepBy, try, (<?>))
+import           Control.Applicative                             ((<|>))
+import           Data.Text                                       (Text)
+import           GHC.List                                        (List)
+import           Language.Memento.Data.AST.Definition            (ConstructorDef (ConstructorDef),
+                                                                  Definition (DataDef, FnDef, TypeDef, ValDef))
+import           Language.Memento.Data.AST.Tag                   (KBlock,
+                                                                  KDefinition,
+                                                                  KExpr, KType,
+                                                                  KTypeVariable,
+                                                                  KVariable)
+import           Language.Memento.Data.Functor.Combinator.Higher (Family,
+                                                                  Wapper)
+import           Language.Memento.Parser.Core                    (parseAngleBrackets,
+                                                                  parseBraces,
+                                                                  parseParens,
+                                                                  parseReservedWord,
+                                                                  parseSymbol)
+import           Text.Megaparsec                                 (MonadParsec,
+                                                                  choice, sepBy,
+                                                                  sepEndBy, try,
+                                                                  (<?>))
 
-parseDefinition :: forall f m s. (MonadParsec s Text m) => Family m f -> m (Definition f KDefinition)
-parseDefinition r =
+parseDefinition :: forall f m s. (MonadParsec s Text m) =>
+  Wapper m Definition f ->
+  Family m f ->
+  m (f KDefinition)
+parseDefinition wrap r = wrap $
   choice
     [ parseValDefinition r <?> "val definition"
     , parseFnDefinition r <?> "fn definition"
@@ -31,18 +47,8 @@ parseConstructorDef ::
 parseConstructorDef r = do
   choice
     [ parseFunctionSyntax <?> "function constructor definition"
-    , parseNormalSyntax <?> "value constructor definition"
     ]
  where
-  -- Normal syntax: val Nil<T> : List<T>
-  parseNormalSyntax = do
-    parseReservedWord "val"
-    constructorName <- r @KVariable
-    ctorTypeParams <- parseTypeParameters r
-    parseSymbol ":"
-    constructorType <- r @KType
-    return $ ConstructorDef constructorName ctorTypeParams constructorType
-
   -- Function syntax: fn Cons<T>(x : T, xs : List<T>) : List<T>
   parseFunctionSyntax = do
     parseReservedWord "fn"
@@ -51,7 +57,7 @@ parseConstructorDef r = do
     -- Parse parameter list
     params <-
       parseParens $
-        sepBy
+        sepEndBy
           ( do
               paramName <- r @KVariable
               parseSymbol ":"
@@ -60,10 +66,10 @@ parseConstructorDef r = do
           )
           (parseSymbol ",")
     -- Parse return type
-    parseSymbol ":"
+    parseSymbol "->"
     returnType <- r @KType
 
-    return $ ConstructorFnDef constructorName ctorTypeParams params returnType
+    return $ ConstructorDef constructorName ctorTypeParams params returnType
 
 -- | data Maybe [fn Some<T>(x : T) : Maybe<T>, val None<T> : Maybe<T>];
 parseDataDefinition ::
@@ -71,7 +77,7 @@ parseDataDefinition ::
 parseDataDefinition r = do
   parseReservedWord "data"
   dataName <- r @KVariable
-  constructors <- parseBrackets $ sepBy (parseConstructorDef r) (parseSymbol ",")
+  constructors <- parseBraces $ sepEndBy (parseConstructorDef r) (parseSymbol ",")
   parseSymbol ";"
   return $ DataDef dataName constructors
 
@@ -85,6 +91,7 @@ parseValDefinition r = do
   typ <- r @KType
   parseSymbol "="
   body <- r @KExpr
+  parseSymbol ";"
   return $ ValDef name typeParams typ body
 
 parseFnDefinition ::
@@ -104,9 +111,10 @@ parseFnDefinition r = do
             return (paramName, paramType)
         )
         (parseSymbol ",")
-  parseSymbol ":"
+  parseSymbol "->"
   typ <- r @KType
   body <- r @KBlock
+  parseSymbol ";"
   return $ FnDef name typeParams params typ body
 
 parseTypeDef ::
@@ -117,12 +125,12 @@ parseTypeDef r = do
   typeParams <- parseTypeParameters r
   parseSymbol "="
   typ <- r @KType
-  _ <- parseSymbol ";"
+  parseSymbol ";"
   return $ TypeDef name typeParams typ
 
 -- | Parse optional type parameter list like <T, U, V>
 parseTypeParameters ::
   forall f m s. (MonadParsec s Text m) => Family m f -> m (List (f KTypeVariable))
 parseTypeParameters r = do
-  try (parseAngleBrackets $ sepBy (r @KTypeVariable) (parseSymbol ","))
+  try (parseAngleBrackets $ sepEndBy (r @KTypeVariable) (parseSymbol ","))
     <|> return [] -- Empty list if no type parameters

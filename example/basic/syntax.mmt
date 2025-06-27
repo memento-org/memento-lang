@@ -1,0 +1,62 @@
+// Data definition
+data Option {
+  fn Some<T>(value: T) -> Option<T>,
+  fn None<T>() -> Option<T>,
+};
+
+// Value definition
+
+val x : number = Some(42);
+
+// Function definition 
+
+fn add(a: number, b: number) -> number {
+  a + b
+};
+
+// Type definition
+
+type NumOption = Option<number>;
+
+// Lambda expression
+val increment : fn (x : number) -> number
+  = fn (x: number) -> {
+    x + 1
+  };
+
+// Block expression
+val result : number = {
+  let a = 10;
+  let b = 20;
+  add(a, b)
+};
+
+// Switch expression
+fn describeNumber(n: number) -> string { 
+  switch (n) {
+    case (0) -> "Zero",
+    case (1) -> "One",
+    case (2) -> "Two",
+    case (_) -> "Many"
+  }
+};
+
+// Switch with Constructors
+val describeNumber : fn (opt : Option<number>) -> string 
+  = fn (opt: Option<number>) -> switch (opt) {
+    case (Some(n)) -> n,
+    case (None()) -> 0
+  };
+
+// Value with type parameters
+val id<T> : fn (x : T) -> T = fn (x: T) -> {
+  x
+};
+
+// Function with type parameters
+fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
+  switch (opt) {
+    case (Some(value)) -> Some(f(value)),
+    case (None()) -> None()
+  }
+};

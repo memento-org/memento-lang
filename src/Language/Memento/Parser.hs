@@ -1,28 +1,39 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Language.Memento.Parser (parseAST) where
 
-import Data.Text (Text)
-import Data.Typeable (Typeable)
-import GHC.Base (Alternative (empty), Void)
-import Language.Memento.Data.AST (AST, Syntax)
-import Language.Memento.Data.AST.Metadata (Metadata)
-import Language.Memento.Data.Functor.Combinator.Higher (quantify, tie, (<:>))
-import Language.Memento.Data.Functor.Coproduct.Higher (Injective (hInject))
-import Language.Memento.Data.Functor.FixedPoint.Higher (HFix (HFix))
-import Language.Memento.Data.Functor.Product.Higher (Constructive, HProduct, hSingleton)
-import Language.Memento.Parser.Definition (parseDefinition)
-import Language.Memento.Parser.Literal (parseLiteral)
-import Language.Memento.Parser.MType (parseMType)
-import Language.Memento.Parser.Metadata (parseMetadata)
-import Language.Memento.Parser.Pattern (parsePattern)
-import Language.Memento.Parser.Program (parseProgram)
-import Language.Memento.Parser.Variable (parseTypeVariable, parseVariable)
-import Text.Megaparsec (MonadParsec, Parsec)
+import           Data.Text                                       (Text)
+import           Data.Typeable                                   (Typeable)
+import           GHC.Base                                        (Void, (<|>))
+import           Language.Memento.Data.AST                       (AST, Syntax)
+import           Language.Memento.Data.AST.Metadata              (Metadata,
+                                                                  propagateMetadata)
+import           Language.Memento.Data.Functor.Combinator.Higher (Wapper,
+                                                                  quantify, tie)
+import           Language.Memento.Data.Functor.Coproduct.Higher  (Injective (hInject))
+import           Language.Memento.Data.Functor.FixedPoint.Higher (HFix (HFix),
+                                                                  extractHFix)
+import           Language.Memento.Data.Functor.Product.Higher    (Constructive (hConstruct),
+                                                                  Extractive,
+                                                                  HProduct,
+                                                                  hSingleton)
+import           Language.Memento.Parser.Definition              (parseDefinition)
+import           Language.Memento.Parser.Expr                    (parseBlock,
+                                                                  parseExpr,
+                                                                  parseLet)
+import           Language.Memento.Parser.Literal                 (parseLiteral)
+import           Language.Memento.Parser.Metadata                (parseMetadata)
+import           Language.Memento.Parser.MType                   (parseMType)
+import           Language.Memento.Parser.Pattern                 (parsePattern)
+import           Language.Memento.Parser.Program                 (parseProgram)
+import           Language.Memento.Parser.Variable                (parseTypeVariable,
+                                                                  parseVariable)
+import           Text.Megaparsec                                 (MonadParsec,
+                                                                  Parsec)
 
 {-
 x ::
@@ -36,28 +47,44 @@ x r =
 
 type Parser = Parsec Void Text
 
+-- | inject to Coproduct of Syntax, then also inject to Product of [Syntax] (hSingleton)
+-- | , then append metadata, finally wrap by HFix
 wrapper ::
-  forall h h2 s m a.
+  forall h h2 s m.
   ( Constructive Metadata (HProduct '[Syntax]) h
   , Injective h2 Syntax
   , MonadParsec s Text m
   ) =>
-  m (h2 (HFix h) a) ->
-  m (HFix h a)
-wrapper p = HFix <$> parseMetadata (hSingleton <$> hInject @_ @h2 @Syntax <$> p)
+  Wapper m h2 (HFix h)
+wrapper p = HFix <$> parseMetadata (hSingleton . (hInject @_ @h2 @Syntax) <$> p)
+
+-- | Propagate metadata
+propagate ::
+  forall h h2 a .
+  ( Constructive Metadata (HProduct '[Syntax]) h
+  , Injective h2 Syntax
+  , Extractive Metadata h
+  ) =>
+  (HFix h a -> HFix h a -> h2 (HFix h) a) -> HFix h a -> HFix h a -> HFix h a
+propagate f left right =
+  let
+    leftMeta = extractHFix left
+    rightMeta = extractHFix right
+    propagatedMeta = propagateMetadata leftMeta rightMeta
+  in
+    HFix $
+      hConstruct propagatedMeta $ hSingleton $ hInject @_ @h2 @Syntax $ f left right
+
 
 parseAST :: forall x. (Typeable x) => Parser (AST x)
 parseAST = tie $ \r ->
-  HFix
-    <$> parseMetadata @(HProduct '[Syntax])
-      ( hSingleton
-          <$> ( quantify (parseLiteral r)
-                  <:> quantify (parseMType wrapper r)
-                  <:> quantify (parsePattern r)
-                  <:> quantify (parseDefinition r)
-                  <:> quantify (parseProgram r)
-                  <:> quantify (parseVariable r)
-                  <:> quantify (parseTypeVariable r)
-                  <:> empty
-              )
-      )
+  quantify (parseLiteral wrapper r)
+  <|> quantify (parseMType wrapper r)
+  <|> quantify (parsePattern wrapper r)
+  <|> quantify (parseDefinition wrapper r)
+  <|> quantify (parseProgram wrapper r)
+  <|> quantify (parseVariable wrapper r)
+  <|> quantify (parseTypeVariable wrapper r)
+  <|> quantify (parseExpr wrapper propagate r)
+  <|> quantify (parseLet wrapper r)
+  <|> quantify (parseBlock wrapper r)
