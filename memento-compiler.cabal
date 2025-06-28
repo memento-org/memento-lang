@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
     Language.Memento.Backend.JS.Codegen
+    Language.Memento.Backend.JS.Compile
     Language.Memento.Backend.JS.Data.IR
     Language.Memento.Backend.WASM.Codegen
     Language.Memento.Backend.WASM.Data.IR
@@ -39,20 +40,24 @@ library
     Language.Memento.Data.AST.Program
     Language.Memento.Data.AST.Tag
     Language.Memento.Data.AST.Variable
+    Language.Memento.Data.Environment.Ty
+    Language.Memento.Data.Environment.Val
+    Language.Memento.Data.Environment.Variance
     Language.Memento.Data.Functor.Combinator.Higher
     Language.Memento.Data.Functor.Coproduct
     Language.Memento.Data.Functor.Coproduct.Higher
     Language.Memento.Data.Functor.FixedPoint
     Language.Memento.Data.Functor.FixedPoint.Higher
+    Language.Memento.Data.Functor.Foldable.Higher
     Language.Memento.Data.Functor.Higher
     Language.Memento.Data.Functor.Op
     Language.Memento.Data.Functor.Product
     Language.Memento.Data.Functor.Product.Higher
-    Language.Memento.Data.InternalType
     Language.Memento.Data.NaturalTransformation
     Language.Memento.Data.Ty
     Language.Memento.Data.Type.NonEq
     Language.Memento.Data.TypedAST
+    Language.Memento.Data.TypedAST.TyInfo
     Language.Memento.Parser
     Language.Memento.Parser.Core
     Language.Memento.Parser.Definition
@@ -63,6 +68,20 @@ library
     Language.Memento.Parser.Pattern
     Language.Memento.Parser.Program
     Language.Memento.Parser.Variable
+    Language.Memento.TypeSolver
+    Language.Memento.TypeSolver.ConstraintGen
+    Language.Memento.TypeSolver.Data.Constraint
+    Language.Memento.TypeSolver.Normalize
+    Language.Memento.TypeSolver.SolveAssumptions
+    Language.Memento.TypeSolver.SolveConstraints
+    Language.Memento.TypeSolver.SolveVariances
+    Language.Memento.TypeSolver.Subtype
+    Language.Memento.Typing
+    Language.Memento.Typing.Collection
+    Language.Memento.Typing.Core
+    Language.Memento.Typing.Inference
+    Language.Memento.Typing.Scheme
+    Language.Memento.Util
     Lib
   other-modules:
     Paths_memento_compiler
@@ -80,6 +99,7 @@ library
     parser-combinators,
     polysemy,
     polysemy-plugin,
+    process,
     safe,
     text
   default-language: Haskell2010
@@ -103,6 +123,7 @@ executable memento-compiler-exe
     parser-combinators,
     polysemy,
     polysemy-plugin,
+    process,
     safe,
     text
   default-language: Haskell2010
@@ -127,6 +148,7 @@ test-suite memento-compiler-test
     parser-combinators,
     polysemy,
     polysemy-plugin,
+    process,
     safe,
     text
   default-language: Haskell2010

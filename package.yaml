@@ -31,6 +31,7 @@ dependencies:
   - filepath
   - polysemy
   - polysemy-plugin
+  - process
   - safe
 
 ghc-options:
