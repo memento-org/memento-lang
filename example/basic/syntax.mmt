@@ -1,5 +1,5 @@
 // Data definition
-data Option {
+data Option<auto> {
   fn Some<T>(value: T) -> Option<T>,
   fn None<T>() -> Option<T>,
 };
@@ -8,7 +8,7 @@ data Option {
 
 val x : number = Some(42);
 
-// Function definition 
+// Function definition
 
 fn add(a: number, b: number) -> number {
   a + b
@@ -32,7 +32,7 @@ val result : number = {
 };
 
 // Switch expression
-fn describeNumber(n: number) -> string { 
+fn describeNumber(n: number) -> string {
   switch (n) {
     case (0) -> "Zero",
     case (1) -> "One",
@@ -42,7 +42,7 @@ fn describeNumber(n: number) -> string {
 };
 
 // Switch with Constructors
-val describeNumber : fn (opt : Option<number>) -> string 
+val describeNumber2 : fn (opt : Option<number>) -> string
   = fn (opt: Option<number>) -> switch (opt) {
     case (Some(n)) -> n,
     case (None()) -> 0
@@ -59,4 +59,8 @@ fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
     case (Some(value)) -> Some(f(value)),
     case (None()) -> None()
   }
+};
+
+fn main() -> number {
+  42
 };
