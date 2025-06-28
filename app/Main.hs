@@ -3,20 +3,30 @@
 
 module Main (main) where
 
-import qualified Data.Text                                as T
-import qualified Data.Text.IO                            as TIO
-import           Language.Memento.Backend.JS.Codegen     (formatJSProgram)
-import           Language.Memento.Backend.JS.Compile     (compileToJS)
-import           Language.Memento.Data.AST.Tag           (KProgram)
-import           Language.Memento.Parser                 (parseAST)
-import           Language.Memento.Typing                 (TypingError, typeProgram)
-import           System.Directory                        (createDirectoryIfMissing)
-import           System.Environment                      (getArgs)
-import           System.Exit                             (exitFailure, exitSuccess)
-import           System.FilePath                         (replaceExtension, takeFileName, (</>))
-import           System.IO                               (hPutStrLn, stderr)
-import           System.Process                          (callProcess)
-import           Text.Megaparsec                         (errorBundlePretty, parse)
+import           Control.Monad                               (forM_)
+import qualified Data.Text                                   as T
+import qualified Data.Text.IO                                as TIO
+import           Language.Memento.Backend.JS.Codegen         (formatJSProgram)
+import           Language.Memento.Backend.JS.Compile         (compileToJS)
+import           Language.Memento.Data.AST.Tag               (KProgram)
+import           Language.Memento.Parser                     (parseAST)
+import           Language.Memento.TypeSolver                 (SolveError (..),
+                                                              solveTypedAST)
+import           Language.Memento.TypeSolver.ConstraintGen   (generateConstraints)
+import           Language.Memento.TypeSolver.Data.Constraint (formatConstraints)
+import           Language.Memento.TypeSolver.SolveVariances  (solveVariancesFromEnv)
+import           Language.Memento.Typing                     (typeProgramWithTyCons)
+import           System.Directory                            (createDirectoryIfMissing)
+import           System.Environment                          (getArgs)
+import           System.Exit                                 (exitFailure,
+                                                              exitSuccess)
+import           System.FilePath                             (replaceExtension,
+                                                              takeFileName,
+                                                              (</>))
+import           System.IO                                   (hPutStrLn, stderr)
+import           System.Process                              (callProcess)
+import           Text.Megaparsec                             (errorBundlePretty,
+                                                              parse)
 
 -- | Main entry point for the Memento compiler
 main :: IO ()
@@ -94,20 +104,46 @@ checkCommand filePath = do
       putStrLn "Parse successful!"
 
       -- Type check the AST
-      case typeProgram ast of
+      case typeProgramWithTyCons ast of
         Left typingError -> do
           hPutStrLn stderr "Type error:"
           hPutStrLn stderr $ show typingError
           exitFailure
-        Right typedAst -> do
+        Right (unsolvedTypedAst, tyCons) -> do
           putStrLn "Type checking successful!"
           putStrLn ""
-          putStrLn "Typed AST:"
-          putStrLn $ replicate 60 '-'
-          print typedAst
-          putStrLn ""
-          putStrLn "✓ The file was successfully type checked."
-          exitSuccess
+          
+          -- Solve variances
+          let solvedVariances = solveVariancesFromEnv tyCons
+          putStrLn "Solved variances for type constructors."
+          
+          -- Show constraints
+          let constraintAndAssumptions = generateConstraints unsolvedTypedAst
+          putStrLn "Generated constraints:"
+          forM_ constraintAndAssumptions $ \(assumptions, constraints) -> do
+            putStrLn $ replicate 60 '-'
+            putStrLn "Assumptions:"
+            putStrLn $ T.unpack $ formatConstraints assumptions
+            putStrLn ""
+            putStrLn "Constraints:"
+            putStrLn $ T.unpack $ formatConstraints constraints
+            putStrLn ""
+          
+          -- Solve type constraints
+          case solveTypedAST solvedVariances unsolvedTypedAst of
+            Left (ContradictionError err) -> do
+              hPutStrLn stderr "Type constraint solving error:"
+              hPutStrLn stderr err
+              exitFailure
+            Left (UnsolvedVariablesError vars) -> do
+              hPutStrLn stderr "Unsolved type variables:"
+              hPutStrLn stderr $ show vars
+              exitFailure
+            Right _ -> do
+              putStrLn $ replicate 60 '-'
+              putStrLn "✓ Type constraint solving successful!"
+              putStrLn "✓ The file was successfully type checked."
+              exitSuccess
 
 -- | Compile a Memento source file to JavaScript
 compileCommand :: FilePath -> IO ()
@@ -128,31 +164,47 @@ compileCommand filePath = do
       putStrLn "Parse successful!"
 
       -- Type check the AST
-      case typeProgram ast of
+      case typeProgramWithTyCons ast of
         Left typingError -> do
           hPutStrLn stderr "Type error:"
           hPutStrLn stderr $ show typingError
           exitFailure
-        Right typedAst -> do
+        Right (unsolvedTypedAst, tyCons) -> do
           putStrLn "Type checking successful!"
+          
+          -- Solve variances
+          let solvedVariances = solveVariancesFromEnv tyCons
+          
+          -- Solve type constraints
+          case solveTypedAST solvedVariances unsolvedTypedAst of
+            Left (ContradictionError err) -> do
+              hPutStrLn stderr "Type constraint solving error:"
+              hPutStrLn stderr err
+              exitFailure
+            Left (UnsolvedVariablesError vars) -> do
+              hPutStrLn stderr "Unsolved type variables:"
+              hPutStrLn stderr $ show vars
+              exitFailure
+            Right solvedTypedAst -> do
+              putStrLn "Type constraint solving successful!"
+              
+              -- Compile to JS IR
+              let jsIR = compileToJS solvedTypedAst
+              putStrLn "Compilation to JS IR successful!"
 
-          -- Compile to JS IR
-          let jsIR = compileToJS typedAst
-          putStrLn "Compilation to JS IR successful!"
+              -- Generate JavaScript code
+              let jsCode = formatJSProgram jsIR
+              let outputFile = "dist" </> replaceExtension (takeFileName filePath) ".js"
 
-          -- Generate JavaScript code
-          let jsCode = formatJSProgram jsIR
-          let outputFile = "dist" </> replaceExtension (takeFileName filePath) ".js"
+              -- Create dist directory if it doesn't exist
+              createDirectoryIfMissing True "dist"
 
-          -- Create dist directory if it doesn't exist
-          createDirectoryIfMissing True "dist"
+              -- Write to output file
+              TIO.writeFile outputFile jsCode
 
-          -- Write to output file
-          TIO.writeFile outputFile jsCode
-
-          putStrLn $ "✓ Successfully compiled to: " ++ outputFile
-          putStrLn ""
-          exitSuccess
+              putStrLn $ "✓ Successfully compiled to: " ++ outputFile
+              putStrLn ""
+              exitSuccess
 
 -- | Compile and run a Memento source file
 runCommand :: FilePath -> IO ()
@@ -173,35 +225,51 @@ runCommand filePath = do
       putStrLn "Parse successful!"
 
       -- Type check the AST
-      case typeProgram ast of
+      case typeProgramWithTyCons ast of
         Left typingError -> do
           hPutStrLn stderr "Type error:"
           hPutStrLn stderr $ show typingError
           exitFailure
-        Right typedAst -> do
+        Right (unsolvedTypedAst, tyCons) -> do
           putStrLn "Type checking successful!"
-
-          -- Compile to JS IR
-          let jsIR = compileToJS typedAst
-          putStrLn "Compilation to JS IR successful!"
-
-          -- Generate JavaScript code
-          let jsCode = formatJSProgram jsIR
-          let outputFile = "dist" </> replaceExtension (takeFileName filePath) ".js"
-
-          -- Create dist directory if it doesn't exist
-          createDirectoryIfMissing True "dist"
-
-          -- Write to output file
-          TIO.writeFile outputFile jsCode
-
-          putStrLn $ "✓ Successfully compiled to: " ++ outputFile
-          putStrLn ""
-          putStrLn "Running JavaScript:"
-          putStrLn $ replicate 60 '-'
           
-          -- Run the JavaScript with Node.js
-          callProcess "node" [outputFile]
-          putStrLn ""
-          putStrLn "✓ Execution completed"
-          exitSuccess
+          -- Solve variances
+          let solvedVariances = solveVariancesFromEnv tyCons
+          
+          -- Solve type constraints
+          case solveTypedAST solvedVariances unsolvedTypedAst of
+            Left (ContradictionError err) -> do
+              hPutStrLn stderr "Type constraint solving error:"
+              hPutStrLn stderr err
+              exitFailure
+            Left (UnsolvedVariablesError vars) -> do
+              hPutStrLn stderr "Unsolved type variables:"
+              hPutStrLn stderr $ show vars
+              exitFailure
+            Right solvedTypedAst -> do
+              putStrLn "Type constraint solving successful!"
+              
+              -- Compile to JS IR
+              let jsIR = compileToJS solvedTypedAst
+              putStrLn "Compilation to JS IR successful!"
+
+              -- Generate JavaScript code
+              let jsCode = formatJSProgram jsIR
+              let outputFile = "dist" </> replaceExtension (takeFileName filePath) ".js"
+
+              -- Create dist directory if it doesn't exist
+              createDirectoryIfMissing True "dist"
+
+              -- Write to output file
+              TIO.writeFile outputFile jsCode
+
+              putStrLn $ "✓ Successfully compiled to: " ++ outputFile
+              putStrLn ""
+              putStrLn "Running JavaScript:"
+              putStrLn $ replicate 60 '-'
+
+              -- Run the JavaScript with Node.js
+              callProcess "node" [outputFile]
+              putStrLn ""
+              putStrLn "✓ Execution completed"
+              exitSuccess

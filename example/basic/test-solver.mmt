@@ -1,0 +1,20 @@
+// Simple test for type solver
+
+// Identity function
+fn identity<T>(x: T) -> T {
+  x
+};
+
+// Simple arithmetic
+fn add(a: number, b: number) -> number {
+  a + b
+};
+
+// Using the functions
+val result: number = add(1.5, 2.5);
+val id_result: number = identity(42.0);
+
+// Main function
+fn main() -> number {
+  result + id_result
+};

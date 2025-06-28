@@ -6,6 +6,7 @@
 
 module Language.Memento.Typing (
   typeProgram,
+  typeProgramWithTyCons,
   TypingError(..)
 ) where
 
@@ -13,10 +14,13 @@ import           Control.Monad.Except                            (runExceptT)
 import           Control.Monad.State                             (runState)
 import qualified Data.Map                                        as Map
 import qualified Data.Set                                        as Set
+import qualified Data.Text                                       as T
 import           Language.Memento.Data.AST                       (AST, Syntax)
 import           Language.Memento.Data.AST.Metadata              (Metadata)
 import           Language.Memento.Data.AST.Program               (Program (Program))
 import           Language.Memento.Data.AST.Tag                   (KProgram)
+import           Language.Memento.Data.Environment.Ty            (TyConsConstructor)
+import           Language.Memento.Data.Environment.Variance      (Variance)
 import           Language.Memento.Data.Functor.Coproduct.Higher  (HInjective (hInject))
 import           Language.Memento.Data.Functor.FixedPoint.Higher (HFix (..),
                                                                   extractHFix,
@@ -42,7 +46,11 @@ This module defines transformation `AST -> TypedAST UnsolvedTy`.
 
 -- Main entry point for typing
 typeProgram :: AST KProgram -> Either TypingError (TypedAST UnsolvedTy KProgram)
-typeProgram ast =
+typeProgram ast = fst <$> typeProgramWithTyCons ast
+
+-- Type program and also return type constructors for variance solving
+typeProgramWithTyCons :: AST KProgram -> Either TypingError (TypedAST UnsolvedTy KProgram, Map.Map T.Text ([Maybe Variance], [TyConsConstructor]))
+typeProgramWithTyCons ast =
   let
     initialState = TypingState
       { tsTypeConstructors = Map.empty
@@ -51,15 +59,15 @@ typeProgram ast =
       , tsVariables = Map.empty
       , tsNextVarId = 0 }
     result = runState (runExceptT (typeProgramM ast)) initialState
-  in case fst result of
-    Left err       -> Left err
-    Right typedAST -> Right typedAST
+  in case result of
+    (Left err, _)          -> Left err
+    (Right typedAST, finalState) -> Right (typedAST, tsTypeConstructors finalState)
 
 typeProgramM :: AST KProgram -> TypingM (TypedAST UnsolvedTy KProgram)
 typeProgramM ast = case safeProjectVia @Syntax ast of
   Program definitions -> do
     -- Phase 1: Collect type constructors and value definitions
-    mapM_ (Collection.collectDefinition Inference.typeType) definitions
+    mapM_ (Collection.collectDefinition Inference.synTypeToTy) definitions
 
     -- Phase 2: Type the definitions
     typedDefinitions <- mapM Inference.typeDefinition definitions

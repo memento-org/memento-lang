@@ -82,7 +82,7 @@ tyFormatter = \case
   TLiteral (LBool b) -> T.pack (show b)
   TLiteral (LString s) -> s
   TFunction args ret ->
-    "(fn " <> T.intercalate ", " args <> " -> " <> ret <> ")"
+    "(fn (" <> T.intercalate ", " args <> ") -> " <> ret <> ")"
   TUnion ts -> "(" <> T.intercalate " | " ts <> ")"
   TIntersection ts -> "(" <> T.intercalate " & " ts <> ")"
   TGeneric t -> t

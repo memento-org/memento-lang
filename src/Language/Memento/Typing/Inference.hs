@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
+
+
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeAbstractions    #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -9,7 +9,7 @@
 module Language.Memento.Typing.Inference (
   -- Type inference functions
   typeType,
-  typeTypeAST,
+  synTypeToTy,
   typeTypeVariable,
   getLiteralType,
 
@@ -19,7 +19,6 @@ module Language.Memento.Typing.Inference (
   typeLet,
 
   -- Pattern typing
-  typePattern,
   typeLiteral,
   getPatternType,
   findConstructor,
@@ -28,8 +27,8 @@ module Language.Memento.Typing.Inference (
   typeDefinition,
   typeConstructorDef,
   typeVariable,
-  introTypeVariable,
-  topLevelTypeVariable
+  typeIntroVariable,
+  typeTopLevelVariable
 ) where
 
 import           Control.Monad.Except                            (throwError)
@@ -89,18 +88,20 @@ import           Language.Memento.Typing.Core                    (TypingError (.
                                                                   TypingM,
                                                                   TypingState (..),
                                                                   extractSourcePos,
+                                                                  freshGeneric,
                                                                   freshTyVar)
-import           Language.Memento.Typing.Scheme                  (instantiateScheme)
+import           Language.Memento.Typing.Scheme                  (instantiateScheme,
+                                                                  instantiateSchemeWithGenerics)
 
 -- Type operations
-typeType :: AST KType -> TypingM Ty
-typeType ast = case safeProjectVia @Syntax ast of
+synTypeToTy :: AST KType -> TypingM Ty
+synTypeToTy ast = case safeProjectVia @Syntax ast of
   TVar typeVarAST -> do
     let TypeVar name = safeProjectVia @Syntax typeVarAST
     state <- get
-    if Set.member name (tsTypeGenerics state)
+    if Set.member name (tsTypeGenerics state) -- Is Generic?
       then return $ injectFix $ Ty.TGeneric name
-      else case  Map.lookup name (tsTypeConstructors state) of
+      else case  Map.lookup name (tsTypeConstructors state) of -- Is a type constructor with nullary?
         Just (variances, _)  ->
           let actualArity = length variances
           in if actualArity == 0 then
@@ -113,26 +114,26 @@ typeType ast = case safeProjectVia @Syntax ast of
   TBool -> return $ injectFix Ty.TBool
   TString -> return $ injectFix Ty.TString
   TFunction argVarTypes retType -> do
-    typedArgTypes <- mapM (\(_, argTypeAST) -> typeType argTypeAST) argVarTypes
-    typedRetType <- typeType retType
+    typedArgTypes <- mapM (\(_, argTypeAST) -> synTypeToTy argTypeAST) argVarTypes
+    typedRetType <- synTypeToTy retType
     return $ injectFix $ Ty.TFunction typedArgTypes typedRetType
   TUnknown -> return $ injectFix Ty.TUnknown
   TNever -> return $ injectFix Ty.TNever
   TLiteral literalAST -> do
-    let lit = hSafeProject @Literal $ extractHFix @Syntax literalAST
+    let lit = safeProjectVia @Syntax literalAST
     return $ injectFix $ case lit of
       NumberLiteral _ -> Ty.TNumber
       IntLiteral _    -> Ty.TInt
       BoolLiteral _   -> Ty.TBool
       StringLiteral _ -> Ty.TString
   TUnion types -> do
-    typedTypes <- mapM typeType types
+    typedTypes <- mapM synTypeToTy types
     return $ injectFix $ Ty.TUnion typedTypes
   TIntersection types -> do
-    typedTypes <- mapM typeType types
+    typedTypes <- mapM synTypeToTy types
     return $ injectFix $ Ty.TIntersection typedTypes
   TApplication nameAST args -> do
-    let TypeVar name = hSafeProject @TypeVariable $ extractHFix @Syntax nameAST
+    let TypeVar name = safeProjectVia @Syntax nameAST
     state <- get
     case Map.lookup name (tsTypeConstructors state) of
       Nothing -> throwError (UndefinedTypeConstructor name (extractSourcePos nameAST))
@@ -142,11 +143,11 @@ typeType ast = case safeProjectVia @Syntax ast of
         if expectedArity /= actualArity
           then throwError (ArityMismatch name expectedArity actualArity (extractSourcePos nameAST))
           else do
-            typedArgs <- mapM typeType args
+            typedArgs <- mapM synTypeToTy args
             return $ injectFix $ Ty.TApplication name typedArgs
 
-typeTypeAST :: AST KType -> TypingM (TypedAST UnsolvedTy KType)
-typeTypeAST ast = let meta = extractHFix @Metadata ast in case safeProjectVia @Syntax ast of
+typeType :: AST KType -> TypingM (TypedAST UnsolvedTy KType)
+typeType ast = let meta = extractHFix @Metadata ast in case safeProjectVia @Syntax ast of
   TVar typeVarAST -> do
     typedTypeVar <- typeTypeVariable typeVarAST
     let typeTyInfo = TypeTyInfo @UnsolvedTy
@@ -165,10 +166,11 @@ typeTypeAST ast = let meta = extractHFix @Metadata ast in case safeProjectVia @S
     return $ HFix $ hInject typeTyInfo :**: hCoerce meta :**: hInject TString :**: HUnit
   TFunction params retType -> do
     typedParams <- mapM (\(varAST, typeAST) -> do
-      typedVar <- typeFunctionParameter varAST  -- Use helper instead of typeVariable
-      typedType <- typeTypeAST typeAST
+      ty <- synTypeToTy typeAST  -- Convert AST type to UnsolvedTy
+      typedVar <- typeVariableWith varAST $ tyToUnsolvedTy ty
+      typedType <- typeType typeAST
       return (typedVar, typedType)) params
-    typedRetType <- typeTypeAST retType
+    typedRetType <- typeType retType
     let typeTyInfo = TypeTyInfo @UnsolvedTy
     return $ HFix $ hInject typeTyInfo :**: hCoerce meta :**: hInject (TFunction typedParams typedRetType) :**: HUnit
   TUnknown -> do
@@ -182,16 +184,16 @@ typeTypeAST ast = let meta = extractHFix @Metadata ast in case safeProjectVia @S
     let typeTyInfo = TypeTyInfo @UnsolvedTy
     return $ HFix $ hInject typeTyInfo :**: hCoerce meta :**: hInject (TLiteral typedLiteral) :**: HUnit
   TUnion types -> do
-    typedTypes <- mapM typeTypeAST types
+    typedTypes <- mapM typeType types
     let typeTyInfo = TypeTyInfo @UnsolvedTy
     return $ HFix $ hInject typeTyInfo :**: hCoerce meta :**: hInject (TUnion typedTypes) :**: HUnit
   TIntersection types -> do
-    typedTypes <- mapM typeTypeAST types
+    typedTypes <- mapM typeType types
     let typeTyInfo = TypeTyInfo @UnsolvedTy
     return $ HFix $ hInject typeTyInfo :**: hCoerce meta :**: hInject (TIntersection typedTypes) :**: HUnit
   TApplication nameAST args -> do
     typedTypeCons <- typeTypeVariable nameAST
-    typedArgs <- mapM typeTypeAST args
+    typedArgs <- mapM typeType args
     let typeTyInfo = TypeTyInfo @UnsolvedTy
     return $ HFix $ hInject typeTyInfo :**: hCoerce meta :**: hInject (TApplication typedTypeCons typedArgs) :**: HUnit
 
@@ -208,6 +210,13 @@ getLiteralType ast = case safeProjectVia @Syntax ast of
   IntLiteral _    -> return $ injectFix Ty.TInt
   BoolLiteral _   -> return $ injectFix Ty.TBool
   StringLiteral _ -> return $ injectFix Ty.TString
+
+-- Convert optional type annotation to UnsolvedTy
+maybeTypeToUnsolvedTy :: Maybe (AST KType) -> TypingM (Maybe UnsolvedTy)
+maybeTypeToUnsolvedTy Nothing = return Nothing
+maybeTypeToUnsolvedTy (Just typeAST) = do
+  ty <- synTypeToTy typeAST
+  return $ Just $ tyToUnsolvedTy ty
 
 -- Expression typing
 typeExpression :: AST KExpr -> TypingM (TypedAST UnsolvedTy KExpr)
@@ -235,19 +244,23 @@ typeExpression ast = let meta = extractHFix @Metadata ast in case safeProjectVia
     -- Save current variables
     state <- get
     let savedVariables = tsVariables state
-    
+
     -- Type parameters and introduce their variables
-    typedParams <- mapM (\(patAST, _) -> do
-      typedPat <- typePattern patAST
-      return (typedPat, Nothing)) params
-    
+    typedParams <- mapM (\(patAST, maybeTypeAST) -> do
+      maybeExpectedType <- maybeTypeToUnsolvedTy maybeTypeAST
+      typedPat <- typePatternWithType patAST maybeExpectedType
+      typedType <- case maybeTypeAST of
+        Nothing      -> return Nothing
+        Just typeAST -> Just <$> typeType typeAST
+      return (typedPat, typedType)) params
+
     -- Type body with parameter variables in scope
     typedBody <- typeExpression bodyAST
-    
+
     -- Restore original variables
     currentState <- get
     put $ currentState { tsVariables = savedVariables }
-    
+
     paramTypes <- mapM (\(patAST, _) -> getPatternType patAST) typedParams
     let ExprTyInfo @UnsolvedTy bodyType = safeProjectVia @(TyInfo UnsolvedTy) typedBody
     let lambdaType = injectFix $ Ty.TFunction paramTypes bodyType
@@ -282,19 +295,23 @@ typeExpression ast = let meta = extractHFix @Metadata ast in case safeProjectVia
       -- Save current variables
       state <- get
       let savedVariables = tsVariables state
-      
+
       -- Type patterns and introduce their variables
-      typedPatternsAndTypes <- mapM (\(patAST, _) -> do
-        typedPat <- typePattern patAST
-        return (typedPat, Nothing)) patternsAndTypes
-      
+      typedPatternsAndTypes <- mapM (\(patAST, maybeTypeAST) -> do
+        maybeExpectedType <- maybeTypeToUnsolvedTy maybeTypeAST
+        typedPat <- typePatternWithType patAST maybeExpectedType
+        typedType <- case maybeTypeAST of
+          Nothing      -> return Nothing
+          Just typeAST -> Just <$> typeType typeAST
+        return (typedPat, typedType)) patternsAndTypes
+
       -- Type expression with pattern variables in scope
       typedExpr <- typeExpression exprAST
-      
+
       -- Restore original variables
       currentState <- get
       put $ currentState { tsVariables = savedVariables }
-      
+
       return (typedPatternsAndTypes, typedExpr)) clausesAST
     resultType <- freshTyVar
     let exprTyInfo = ExprTyInfo @UnsolvedTy resultType
@@ -319,27 +336,31 @@ typeBlock ast = case safeProjectVia @Syntax ast of
 
 typeLet :: AST KLet -> TypingM (TypedAST UnsolvedTy KLet)
 typeLet ast = case safeProjectVia @Syntax ast of
-  Let patAST _ exprAST -> do
+  Let patAST maybeTypeAST exprAST -> do
     let meta = extractHFix @Metadata ast
-    typedPat <- typePattern patAST
+    maybeExpectedType <- maybeTypeToUnsolvedTy maybeTypeAST
+    typedPat <- typePatternWithType patAST maybeExpectedType
     typedExpr <- typeExpression exprAST
+    typedType <- case maybeTypeAST of
+      Nothing      -> return Nothing
+      Just typeAST -> Just <$> typeType typeAST
     letType <- freshTyVar
     let letTyInfo = LetTyInfo @UnsolvedTy letType
-    return $ HFix $ hInject letTyInfo :**: hCoerce meta :**: hInject (Let typedPat Nothing typedExpr) :**: HUnit
+    return $ HFix $ hInject letTyInfo :**: hCoerce meta :**: hInject (Let typedPat typedType typedExpr) :**: HUnit
 
--- Pattern typing
-typePattern :: AST KPattern -> TypingM (TypedAST UnsolvedTy KPattern)
-typePattern ast = case safeProjectVia @Syntax ast of
+-- Pattern typing with optional expected type
+typePatternWithType :: AST KPattern -> Maybe UnsolvedTy -> TypingM (TypedAST UnsolvedTy KPattern)
+typePatternWithType ast maybeExpectedType = case safeProjectVia @Syntax ast of
   PVar varAST -> do
     let meta = extractHFix @Metadata ast
-    typedVar <- introTypeVariable varAST  -- Introduce new variable instead of looking up
-    patternType <- freshTyVar
+    patternType <- maybe freshGeneric return maybeExpectedType
+    typedVar <- typeIntroVariable varAST patternType  -- Introduce new variable instead of looking up
     let patTyInfo = PatternTyInfo @UnsolvedTy patternType
     return $ HFix $ hInject patTyInfo :**: hCoerce meta :**: hInject (PVar typedVar) :**: HUnit
 
   PWildcard -> do
     let meta = extractHFix @Metadata ast
-    patternType <- freshTyVar
+    patternType <- maybe freshGeneric return maybeExpectedType
     let patTyInfo = PatternTyInfo @UnsolvedTy patternType
     return $ HFix $ hInject patTyInfo :**: hCoerce meta :**: hInject PWildcard :**: HUnit
 
@@ -357,12 +378,13 @@ typePattern ast = case safeProjectVia @Syntax ast of
       Nothing -> throwError (UndefinedValueConstructor consName (extractSourcePos consAST))
       Just (TyConsConstructor _ generics _ _) -> do
         let _ = generics
-        typedCons <- typeVariable consAST
-        typedArgs <- mapM typePattern argsAST
-        patternType <- freshTyVar
+        typedCons <- typeConsPatternVariable consAST
+        typedArgs <- mapM (`typePatternWithType` Nothing) argsAST  -- Use typePatternWithType for consistency
+        patternType <- maybe freshGeneric return maybeExpectedType
         let patTyInfo = PatternTyInfo @UnsolvedTy patternType
         let meta = extractHFix @Metadata ast
         return $ HFix $ hInject patTyInfo :**: hCoerce meta :**: hInject (PCons typedCons typedArgs) :**: HUnit
+
 
 typeLiteral :: AST KLiteral -> TypingM (TypedAST UnsolvedTy KLiteral)
 typeLiteral ast =
@@ -400,25 +422,25 @@ findConstructor name tyCons =
 typeDefinition :: AST KDefinition -> TypingM (TypedAST UnsolvedTy KDefinition)
 typeDefinition ast = let meta = extractHFix @Metadata ast in case safeProjectVia @Syntax ast of
   ValDef varAST typeParams typeAST exprAST -> do
-    typedVar <- topLevelTypeVariable varAST
+    typedVar <- typeTopLevelVariable varAST
     typedTypeParams <- mapM typeTypeVariable typeParams
-    
+
     -- Save current generics and add type parameters
     state <- get
     let savedGenerics = tsTypeGenerics state
-    let genericNames = map (\ast -> 
-          let TypeVar name = hSafeProject @TypeVariable $ extractHFix @Syntax ast
+    let genericNames = map (\typeVarAst ->
+          let TypeVar name = safeProjectVia @Syntax typeVarAst
           in name) typeParams
     put $ state { tsTypeGenerics = Set.union savedGenerics (Set.fromList genericNames) }
-    
+
     -- Type the type annotation and expression with extended generics
-    typedType <- typeTypeAST typeAST
+    typedType <- typeType typeAST
     typedExpr <- typeExpression exprAST
-    
+
     -- Restore original generics
     currentState <- get
     put $ currentState { tsTypeGenerics = savedGenerics }
-    
+
     let defTyInfo = DefinitionTyInfo @UnsolvedTy
     return
       $ HFix
@@ -428,34 +450,35 @@ typeDefinition ast = let meta = extractHFix @Metadata ast in case safeProjectVia
         :**: HUnit
 
   FnDef varAST typeParams args retTypeAST blockAST -> do
-    typedVar <- topLevelTypeVariable varAST
+    typedVar <- typeTopLevelVariable varAST
     typedTypeParams <- mapM typeTypeVariable typeParams
-    
+
     -- Save current state (both generics and variables)
     state <- get
     let savedGenerics = tsTypeGenerics state
     let savedVariables = tsVariables state
-    
+
     -- Add type parameters to generics
-    let genericNames = map (\ast -> 
-          let TypeVar name = hSafeProject @TypeVariable $ extractHFix @Syntax ast
+    let genericNames = map (\typeVarAst ->
+          let TypeVar name = safeProjectVia @Syntax typeVarAst
           in name) typeParams
     put $ state { tsTypeGenerics = Set.union savedGenerics (Set.fromList genericNames) }
-    
+
     -- Type arguments and add them to variable scope
     typedArgs <- mapM (\(argVar, argType) -> do
-      tVar <- introTypeVariable argVar
-      tType <- typeTypeAST argType
+      tType <- typeType argType
+      ty <- synTypeToTy argType  -- Convert AST type to UnsolvedTy
+      tVar <- typeIntroVariable argVar $ tyToUnsolvedTy ty
       return (tVar, tType)) args
-    
+
     -- Type return type and body with extended generics and argument variables
-    typedRetType <- typeTypeAST retTypeAST
+    typedRetType <- typeType retTypeAST
     typedBlock <- typeBlock blockAST
-    
+
     -- Restore original state
     currentState <- get
     put $ currentState { tsTypeGenerics = savedGenerics, tsVariables = savedVariables }
-    
+
     let defTyInfo = DefinitionTyInfo @UnsolvedTy
     return
       $ HFix
@@ -475,22 +498,22 @@ typeDefinition ast = let meta = extractHFix @Metadata ast in case safeProjectVia
   TypeDef varAST typeParams typeAST -> do
     typedVar <- typeTypeConstructorDeclaration varAST  -- Use helper instead of typeVariable
     typedTypeParams <- mapM typeTypeVariable typeParams
-    
+
     -- Save current generics and add type parameters
     state <- get
     let savedGenerics = tsTypeGenerics state
-    let genericNames = map (\ast -> 
-          let TypeVar name = hSafeProject @TypeVariable $ extractHFix @Syntax ast
+    let genericNames = map (\typeVarAst ->
+          let TypeVar name = safeProjectVia @Syntax typeVarAst
           in name) typeParams
     put $ state { tsTypeGenerics = Set.union savedGenerics (Set.fromList genericNames) }
-    
+
     -- Type the type body with extended generics
-    typedType <- typeTypeAST typeAST
-    
+    typedType <- typeType typeAST
+
     -- Restore original generics
     currentState <- get
     put $ currentState { tsTypeGenerics = savedGenerics }
-    
+
     let defTyInfo = DefinitionTyInfo @UnsolvedTy
     return $ HFix $ hInject defTyInfo :**: hCoerce meta :**: hInject (TypeDef typedVar typedTypeParams typedType) :**: HUnit
 
@@ -499,26 +522,27 @@ typeConstructorDef (ConstructorDef nameAST typeParams args retTypeAST) = do
   -- Save current generics
   state <- get
   let savedGenerics = tsTypeGenerics state
-  
+
   -- Add constructor's type parameters to generics
-  let genericNames = map (\ast -> 
-        let TypeVar name = hSafeProject @TypeVariable $ extractHFix @Syntax ast
+  let genericNames = map (\ast ->
+        let TypeVar name = safeProjectVia @Syntax ast
         in name) typeParams
   put $ state { tsTypeGenerics = Set.union savedGenerics (Set.fromList genericNames) }
-  
+
   -- Type constructor components with extended generics
   typedName <- typeTypeConstructorDeclaration nameAST  -- Constructor name is a declaration
   typedTypeParams <- mapM typeTypeVariable typeParams
   typedArgs <- mapM (\(argVar, argType) -> do
-    tVar <- typeFunctionParameter argVar  -- Constructor arguments are like function parameters
-    tType <- typeTypeAST argType
+    ty <- synTypeToTy argType  -- Convert AST type to UnsolvedTy
+    tVar <- typeVariableWith argVar $ tyToUnsolvedTy ty  -- Constructor arguments are like function parameters
+    tType <- typeType argType
     return (tVar, tType)) args
-  typedRetType <- typeTypeAST retTypeAST
-  
+  typedRetType <- typeType retTypeAST
+
   -- Restore original generics
   currentState <- get
   put $ currentState { tsTypeGenerics = savedGenerics }
-  
+
   return $ ConstructorDef typedName typedTypeParams typedArgs typedRetType
 
 typeVariable :: AST KVariable -> TypingM (TypedAST UnsolvedTy KVariable)
@@ -540,7 +564,7 @@ typeVariable varAST = do
           :**: hCoerce meta
           :**: hInject (hCoerce var)
           :**: HUnit
-    Nothing -> 
+    Nothing ->
       -- If not found in local variables, check global definitions
       case Map.lookup name valDefs of
         Nothing -> throwError $ UndefinedVariable name (extractSourcePos varAST)
@@ -556,19 +580,39 @@ typeVariable varAST = do
               :**: hInject (hCoerce var)
               :**: HUnit
 
-introTypeVariable :: AST KVariable -> TypingM (TypedAST UnsolvedTy KVariable)
-introTypeVariable varAST = do
+typeConsPatternVariable :: AST KVariable -> TypingM (TypedAST UnsolvedTy KVariable)
+typeConsPatternVariable varAST = do
   st <- get
   let
     var@(Var name) = safeProjectVia @Syntax varAST
-  freshVar <- freshTyVar
+    valDefs = tsValueDefinitions st
+  -- Only check constructors
+  case Map.lookup name valDefs of
+      Nothing -> throwError $ UndefinedVariable name (extractSourcePos varAST)
+      Just scheme -> do
+        inst <- instantiateSchemeWithGenerics scheme
+        let
+          meta = extractHFix @Metadata varAST
+          varTyInfo = VariableTyInfo @UnsolvedTy inst
+        return
+          $ HFix
+          $ hInject varTyInfo
+            :**: hCoerce meta
+            :**: hInject (hCoerce var)
+            :**: HUnit
+
+typeIntroVariable :: AST KVariable -> UnsolvedTy ->  TypingM (TypedAST UnsolvedTy KVariable)
+typeIntroVariable varAST uty = do
+  let
+    var@(Var name) = safeProjectVia @Syntax varAST
+  st <- get  -- Get the current state AFTER freshTyVar
   let
     currentVars = tsVariables st
-    newVars = Map.insert name freshVar currentVars
+    newVars = Map.insert name uty currentVars
   put $ st { tsVariables = newVars }
   let
     meta = extractHFix @Metadata varAST
-    varTyInfo = VariableTyInfo @UnsolvedTy freshVar
+    varTyInfo = VariableTyInfo @UnsolvedTy uty
   return
     $ HFix
     $ hInject varTyInfo
@@ -576,8 +620,8 @@ introTypeVariable varAST = do
       :**: hInject (hCoerce var)
       :**: HUnit
 
-topLevelTypeVariable :: AST KVariable -> TypingM (TypedAST UnsolvedTy KVariable)
-topLevelTypeVariable varAST = do
+typeTopLevelVariable :: AST KVariable -> TypingM (TypedAST UnsolvedTy KVariable)
+typeTopLevelVariable varAST = do
   st <- get
   let
     var@(Var name) = safeProjectVia @Syntax varAST
@@ -596,13 +640,12 @@ topLevelTypeVariable varAST = do
           :**: HUnit
 
 -- Create a TypedAST Variable for function type parameter names (not looked up in environment)
-typeFunctionParameter :: AST KVariable -> TypingM (TypedAST UnsolvedTy KVariable)
-typeFunctionParameter varAST = do
+typeVariableWith :: AST KVariable -> UnsolvedTy -> TypingM (TypedAST UnsolvedTy KVariable)
+typeVariableWith varAST ty = do
   let var@(Var _) = safeProjectVia @Syntax varAST
   let meta = extractHFix @Metadata varAST
   -- Function type parameters don't have a specific type - they're just names
-  dummyType <- freshTyVar
-  let varTyInfo = VariableTyInfo @UnsolvedTy dummyType
+  let varTyInfo = VariableTyInfo @UnsolvedTy ty
   return
     $ HFix
     $ hInject varTyInfo

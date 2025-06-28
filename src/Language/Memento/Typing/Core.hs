@@ -16,24 +16,29 @@ module Language.Memento.Typing.Core (
   extractSourcePos
 ) where
 
-import           Control.Monad.Except                     (ExceptT)
-import           Control.Monad.State                      (State, get, put)
-import qualified Data.Map                                 as Map
-import qualified Data.Set                                 as Set
-import           Data.Text                                (Text)
-import qualified Data.Text                                as T
-import           Language.Memento.Data.AST                (AST)
-import           Language.Memento.Data.AST.Definition     (SyntaxVariance (..))
-import           Language.Memento.Data.AST.Metadata       (Metadata (..))
-import           Language.Memento.Data.Environment.Ty     (TyCons)
-import           Language.Memento.Data.Environment.Val    (ValDefs)
-import           Language.Memento.Data.Environment.Variance (Variance (..))
-import           Language.Memento.Data.Functor.FixedPoint (injectFix)
+import           Control.Monad.Except                            (ExceptT)
+import           Control.Monad.State                             (State, get,
+                                                                  put)
+import qualified Data.Map                                        as Map
+import qualified Data.Set                                        as Set
+import           Data.Text                                       (Text)
+import qualified Data.Text                                       as T
+import           Language.Memento.Data.AST                       (AST)
+import           Language.Memento.Data.AST.Definition            (SyntaxVariance (..))
+import           Language.Memento.Data.AST.Metadata              (Metadata (..))
+import           Language.Memento.Data.Environment.Ty            (TyCons)
+import           Language.Memento.Data.Environment.Val           (ValDefs)
+import           Language.Memento.Data.Environment.Variance      (Variance (..))
+import           Language.Memento.Data.Functor.FixedPoint        (injectFix)
 import           Language.Memento.Data.Functor.FixedPoint.Higher (extractHFix)
-import           Language.Memento.Data.Ty                 (TyVarF (TyVar), UnsolvedTy)
-import qualified Language.Memento.Data.Ty                 as Ty
-import           Text.Megaparsec                          (SourcePos, sourceName, sourceLine, sourceColumn)
-import           Text.Megaparsec.Pos                      (unPos)
+import           Language.Memento.Data.Ty                        (TyVarF (TyVar),
+                                                                  UnsolvedTy)
+import qualified Language.Memento.Data.Ty                        as Ty
+import           Text.Megaparsec                                 (SourcePos,
+                                                                  sourceColumn,
+                                                                  sourceLine,
+                                                                  sourceName)
+import           Text.Megaparsec.Pos                             (unPos)
 
 data TypingError
   = UndefinedTypeConstructor Text (Maybe SourcePos)
@@ -76,7 +81,7 @@ freshTyVar = do
   state <- get
   let varId = tsNextVarId state
   put $ state { tsNextVarId = varId + 1 }
-  return $ injectFix $ TyVar $ "$t" <> T.pack (show varId)
+  return $ injectFix $ TyVar $ "t" <> T.pack (show varId)
 
 -- Generate fresh generic variable
 freshGeneric :: TypingM UnsolvedTy

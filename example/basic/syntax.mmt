@@ -6,7 +6,7 @@ data Option<auto> {
 
 // Value definition
 
-val x : number = Some(42);
+val x : Option<number> = Some(42);
 
 // Function definition
 
@@ -20,7 +20,7 @@ type NumOption = Option<number>;
 
 // Lambda expression
 val increment : fn (x : number) -> number
-  = fn (x: number) -> {
+  = fn (x) -> {
     x + 1
   };
 
@@ -42,7 +42,7 @@ fn describeNumber(n: number) -> string {
 };
 
 // Switch with Constructors
-val describeNumber2 : fn (opt : Option<number>) -> string
+val describeNumber2 : fn (opt : Option<number>) -> number
   = fn (opt: Option<number>) -> switch (opt) {
     case (Some(n)) -> n,
     case (None()) -> 0

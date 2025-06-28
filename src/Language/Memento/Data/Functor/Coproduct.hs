@@ -19,6 +19,7 @@ module Language.Memento.Data.Functor.Coproduct (
   Coproduct,
   (?:),
   absurdVoidF,
+  (+:),
 ) where
 
 import           Data.Kind                                   (Type)
@@ -85,6 +86,11 @@ instance (Traversable f1, Traversable f2) => Traversable (f1 :+: f2) where
   InjR rest -> restHandler rest
 
 infixr 5 ?:
+
+(+:) :: (f1 a -> f3 b) -> (f2 a -> f4 b) -> ((f1 :+: f2) a -> (f3 :+: f4) b)
+(+:) handler restHandler = \case
+  InjL fa -> InjL (handler fa)
+  InjR rest -> InjR (restHandler rest)
 
 -- | Handler for empty coproduct (impossible case)
 absurdVoidF :: VoidF a -> r

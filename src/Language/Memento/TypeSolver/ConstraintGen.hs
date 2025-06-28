@@ -7,6 +7,7 @@ module Language.Memento.TypeSolver.ConstraintGen (generateConstraints) where
 This module defines the function `TypedAST UnsolvedTy -> Set Constraint`.
 -}
 
+import           Control.Monad                                   (unless)
 import           Control.Monad.State                             (State,
                                                                   execState,
                                                                   modify)
@@ -38,7 +39,7 @@ import           Language.Memento.Data.TypedAST.TyInfo           (BlockTyInfo (B
                                                                   PatternTyInfo (PatternTyInfo),
                                                                   VariableTyInfo (VariableTyInfo))
 import           Language.Memento.TypeSolver.Data.Constraint     (Assumption,
-                                                                  Constraint,
+                                                                  Constraint (..),
                                                                   (?<:))
 
 data ConstraintGenState = ConstraintGenState {
@@ -55,12 +56,12 @@ initState = ConstraintGenState {
   }
 
 addConstraint :: Constraint -> ConstraintGenM ()
-addConstraint c = do
-  modify $ \s -> s { cgsConstraints = Set.insert c (cgsConstraints s) }
+addConstraint c@(l `IsSubtypeOf` r) = do
+  unless (l == r) $ modify $ \s -> s { cgsConstraints = Set.insert c (cgsConstraints s) }
 
 addAssumption :: Assumption -> ConstraintGenM ()
-addAssumption c = do
-  modify $ \s -> s { cgsAssumptions = Set.insert c (cgsAssumptions s) }
+addAssumption c@(l `IsSubtypeOf` r) = do
+  unless (l == r) $ modify $ \s -> s { cgsAssumptions = Set.insert c (cgsAssumptions s) }
 
 runConstraintGenM :: ConstraintGenM a -> (Set Assumption, Set Constraint)
 runConstraintGenM m = let
@@ -87,7 +88,7 @@ generateConstraints ast = case safeProjectVia @Syntax ast of
           VariableTyInfo varTy = safeProjectVia @(TyInfo UnsolvedTy) varAST
           BlockTyInfo blockTy = safeProjectVia @(TyInfo UnsolvedTy) blockAST
           paramsTy = map ((\(VariableTyInfo argTy) -> argTy) . (\(argVarAST, _) -> safeProjectVia @(TyInfo UnsolvedTy) argVarAST)) params
-          functionTy  = injectFix $ TFunction paramsTy blockTy
+          functionTy = injectFix $ TFunction paramsTy blockTy
         in Just $ runConstraintGenM $ do
           addConstraint (functionTy ?<: varTy)
           generateBlockConstraints blockAST

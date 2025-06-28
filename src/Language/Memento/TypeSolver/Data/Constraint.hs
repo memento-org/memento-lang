@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.Memento.TypeSolver.Data.Constraint
-  ( Constraint
+  ( Constraint (..)
   , Assumption
   , formatConstraint
   , formatConstraints

@@ -21,6 +21,7 @@ module Language.Memento.Data.Functor.Coproduct.Higher (
   HInhabitOnly (..),
   HCoproduct,
   (??:),
+  (++:),
 ) where
 
 import           Data.Kind                                   (Type)
@@ -106,3 +107,12 @@ class HInhabitOnly h a where
 (??:) handler restHandler = \case
   HInjL fa -> handler fa
   HInjR rest -> restHandler rest
+
+infixr 5 ??:
+
+(++:) :: (h1 f a -> h2 g b) -> (h3 f a -> h4 g b) -> ((h1 :++: h3) f a -> (h2 :++: h4) g b)
+(++:) handler restHandler = \case
+  HInjL fa -> HInjL (handler fa)
+  HInjR rest -> HInjR (restHandler rest)
+
+infixr 5 ++:

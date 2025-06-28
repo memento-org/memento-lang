@@ -19,7 +19,6 @@ import           Control.Monad.State                             (State, get,
 import           Data.Map                                        (Map)
 import qualified Data.Map                                        as Map
 import           Data.Text                                       (Text)
-import qualified Data.Text                                       as T
 import           Language.Memento.Backend.JS.Data.IR
 import           Language.Memento.Data.AST                       (Syntax)
 import           Language.Memento.Data.AST.Definition            (ConstructorDef (..),
@@ -40,7 +39,7 @@ import           Language.Memento.Data.TypedAST                  (TypedAST)
 
 -- | Compilation state for generating unique variable names
 data CompileState = CompileState
-  { symbolCounter     :: Int
+  { symbolCounter      :: Int
   , constructorSymbols :: Map Text JSSymbol  -- Map from constructor name to its symbol
   }
 
@@ -69,13 +68,6 @@ data CompiledCase = CompiledCase
 initialState :: CompileState
 initialState = CompileState 0 Map.empty
 
--- | Generate a fresh symbol for data encoding
-freshSymbol :: Text -> CompileM JSSymbol
-freshSymbol prefix = do
-  counter <- symbolCounter <$> get
-  modify $ \s -> s { symbolCounter = counter + 1 }
-  return $ JSSymbol (prefix <> "_" <> T.pack (show counter)) counter
-
 -- | Get or create a consistent constructor symbol with $ prefix
 getConstructorSymbol :: Text -> CompileM JSSymbol
 getConstructorSymbol constructorName = do
@@ -86,7 +78,7 @@ getConstructorSymbol constructorName = do
       let prefixedName = "$" <> constructorName
       counter <- symbolCounter <$> get
       let symbol = JSSymbol prefixedName counter
-      modify $ \s -> s { 
+      modify $ \s -> s {
         symbolCounter = counter + 1,
         constructorSymbols = Map.insert constructorName symbol (constructorSymbols s)
       }
@@ -97,7 +89,7 @@ compileToJS :: TypedAST t KProgram -> JSProgram
 compileToJS typedAST =
   let (jsStmts, finalState) = runState (compileProgram typedAST) initialState
       symbolDefs = generateSymbolDefinitions (constructorSymbols finalState)
-      mainCall = if hasMainFunction jsStmts 
+      mainCall = if hasMainFunction jsStmts
                  then [JSExprStmt (JSCall (JSMember (JSVar "console") "log") [JSCall (JSVar "main") []])]
                  else []
   in JSProgram (symbolDefs ++ jsStmts ++ mainCall)
@@ -108,7 +100,7 @@ hasMainFunction = any isMainFunction
   where
     isMainFunction :: JSStmt -> Bool
     isMainFunction (JSConst "main" _) = True
-    isMainFunction _ = False
+    isMainFunction _                  = False
 
 -- | Generate symbol definitions for constructors
 generateSymbolDefinitions :: Map Text JSSymbol -> [JSStmt]

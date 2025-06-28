@@ -19,7 +19,18 @@ module Language.Memento.Data.TypedAST.TyInfo (
   ExprTyInfo(..),
   BlockTyInfo(..),
   PatternTyInfo(..),
-  ProgramTyInfo(..)
+  ProgramTyInfo(..),
+  -- Transformation functions
+  transformLiteralTyInfo,
+  transformVariableTyInfo,
+  transformTypeVariableTyInfo,
+  transformTypeTyInfo,
+  transformDefinitionTyInfo,
+  transformLetTyInfo,
+  transformExprTyInfo,
+  transformBlockTyInfo,
+  transformPatternTyInfo,
+  transformProgramTyInfo
 ) where
 
 import           GHC.Base                                       (Type)
@@ -211,3 +222,35 @@ instance HFunctor (ProgramTyInfo t) where
 instance (a /~ KProgram) => ProgramTyInfo t `IsVoidIn` a where
   hAbsurd :: ProgramTyInfo t f a -> b
   hAbsurd = \case {}
+
+-- Transformation functions
+
+transformLiteralTyInfo :: (t -> t') -> LiteralTyInfo t f a -> LiteralTyInfo t' f' a
+transformLiteralTyInfo ft (LiteralTyInfo t) = LiteralTyInfo (ft t)
+
+transformVariableTyInfo :: (t -> t') -> VariableTyInfo t f a -> VariableTyInfo t' f' a
+transformVariableTyInfo ft (VariableTyInfo t) = VariableTyInfo (ft t)
+
+transformTypeVariableTyInfo :: (t -> t') -> TypeVariableTyInfo t f a -> TypeVariableTyInfo t' f' a
+transformTypeVariableTyInfo _ TypeVariableTyInfo = TypeVariableTyInfo
+
+transformTypeTyInfo :: (t -> t') -> TypeTyInfo t f a -> TypeTyInfo t' f' a
+transformTypeTyInfo _ TypeTyInfo = TypeTyInfo
+
+transformDefinitionTyInfo :: (t -> t') -> DefinitionTyInfo t f a -> DefinitionTyInfo t' f' a
+transformDefinitionTyInfo _ DefinitionTyInfo = DefinitionTyInfo
+
+transformLetTyInfo :: (t -> t') -> LetTyInfo t f a -> LetTyInfo t' f' a
+transformLetTyInfo ft (LetTyInfo t) = LetTyInfo (ft t)
+
+transformExprTyInfo :: (t -> t') -> ExprTyInfo t f a -> ExprTyInfo t' f' a
+transformExprTyInfo ft (ExprTyInfo t) = ExprTyInfo (ft t)
+
+transformBlockTyInfo :: (t -> t') -> BlockTyInfo t f a -> BlockTyInfo t' f' a
+transformBlockTyInfo ft (BlockTyInfo t) = BlockTyInfo (ft t)
+
+transformPatternTyInfo :: (t -> t') -> PatternTyInfo t f a -> PatternTyInfo t' f' a
+transformPatternTyInfo ft (PatternTyInfo t) = PatternTyInfo (ft t)
+
+transformProgramTyInfo :: (t -> t') -> ProgramTyInfo t f a -> ProgramTyInfo t' f' a
+transformProgramTyInfo _ ProgramTyInfo = ProgramTyInfo
