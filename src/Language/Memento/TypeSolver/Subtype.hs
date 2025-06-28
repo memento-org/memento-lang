@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs             #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -7,11 +8,14 @@ import           Control.Monad                              (zipWithM)
 import           Data.Map                                   (Map)
 import qualified Data.Map                                   as Map
 import           Data.Text                                  (Text)
+import           Language.Memento.Data.AST.Literal          (Literal (..))
 import           Language.Memento.Data.Environment.Ty       (TyCons)
 import           Language.Memento.Data.Environment.Variance (Variance (..))
-import           Language.Memento.Data.Functor.FixedPoint   (injectFix,
+import           Language.Memento.Data.Functor.FixedPoint   (Fix (..),
+                                                             injectFix,
                                                              projectFix)
-import           Language.Memento.Data.Ty                   (Ty, TyF (..))
+import           Language.Memento.Data.Ty                   (Literal (..), Ty,
+                                                             TyF (..))
 import           Language.Memento.Typing.Core               (TypingError (..))
 
 -- | Check if t1 is a subtype of t2
@@ -36,11 +40,15 @@ isSubtype variances bounds t1 t2 = go t1 t2
       (TString, TString) -> Right True
 
       -- Literal subtyping - using wildcards since Literal constructors are not exported
-      (TLiteral _, TNumber) -> Right True  -- Any literal number is subtype of number
-      (TLiteral _, TInt) -> Right True     -- Any literal int is subtype of int
-      (TLiteral _, TBool) -> Right True    -- Any literal bool is subtype of bool
-      (TLiteral _, TString) -> Right True  -- Any literal string is subtype of string
+      (TLiteral (LNumber _), TNumber) -> Right True  -- Any literal number is subtype of number
+      (TLiteral (LInt _), TInt) -> Right True     -- Any literal int is subtype of int
+      (TLiteral (LBool _), TBool) -> Right True    -- Any literal bool is subtype of bool
+      (TLiteral (LString _), TString) -> Right True  -- Any literal string is subtype of string
       (TLiteral l1, TLiteral l2) -> Right (l1 == l2)
+
+      -- Int & Number
+      (TInt, TNumber) -> Right True
+      (TLiteral (LInt _), TNumber) -> Right True
 
       -- Function subtyping (contravariant in arguments, covariant in return)
       (TFunction args1 ret1, TFunction args2 ret2)

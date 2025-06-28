@@ -15,7 +15,8 @@ module Language.Memento.Data.AST.Literal (Literal (..)) where
 import           Data.Kind                                      (Type)
 import           Data.Text                                      (Text)
 import           Language.Memento.Data.AST.Tag                  (KLiteral)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
+import           Language.Memento.Data.Functor.Coproduct.Higher (HInhabitOnly (..),
+                                                                 IsVoidIn (..))
 import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap),
                                                                  HPhantom (..))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))

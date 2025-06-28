@@ -248,7 +248,8 @@ typeExpression ast = let meta = extractHFix @Metadata ast in case safeProjectVia
     -- Type parameters and introduce their variables
     typedParams <- mapM (\(patAST, maybeTypeAST) -> do
       maybeExpectedType <- maybeTypeToUnsolvedTy maybeTypeAST
-      typedPat <- typePatternWithType patAST maybeExpectedType
+      expectedType <- maybe freshTyVar return maybeExpectedType
+      typedPat <- typePatternWithType patAST $ Just expectedType
       typedType <- case maybeTypeAST of
         Nothing      -> return Nothing
         Just typeAST -> Just <$> typeType typeAST
@@ -299,7 +300,8 @@ typeExpression ast = let meta = extractHFix @Metadata ast in case safeProjectVia
       -- Type patterns and introduce their variables
       typedPatternsAndTypes <- mapM (\(patAST, maybeTypeAST) -> do
         maybeExpectedType <- maybeTypeToUnsolvedTy maybeTypeAST
-        typedPat <- typePatternWithType patAST maybeExpectedType
+        expectedType <- maybe freshTyVar return maybeExpectedType
+        typedPat <- typePatternWithType patAST $ Just expectedType
         typedType <- case maybeTypeAST of
           Nothing      -> return Nothing
           Just typeAST -> Just <$> typeType typeAST
@@ -339,7 +341,8 @@ typeLet ast = case safeProjectVia @Syntax ast of
   Let patAST maybeTypeAST exprAST -> do
     let meta = extractHFix @Metadata ast
     maybeExpectedType <- maybeTypeToUnsolvedTy maybeTypeAST
-    typedPat <- typePatternWithType patAST maybeExpectedType
+    expectedType <- maybe freshTyVar return maybeExpectedType
+    typedPat <- typePatternWithType patAST $ Just expectedType
     typedExpr <- typeExpression exprAST
     typedType <- case maybeTypeAST of
       Nothing      -> return Nothing
@@ -367,8 +370,8 @@ typePatternWithType ast maybeExpectedType = case safeProjectVia @Syntax ast of
   PLiteral literalAST -> do
     let meta = extractHFix @Metadata ast
     typedLiteral <- typeLiteral literalAST
-    literalType <- getLiteralType literalAST
-    let patTyInfo = PatternTyInfo @UnsolvedTy literalType
+    patternType <- maybe freshGeneric return maybeExpectedType
+    let patTyInfo = PatternTyInfo @UnsolvedTy patternType
     return $ HFix $ hInject patTyInfo :**: hCoerce meta :**: hInject (PLiteral typedLiteral) :**: HUnit
 
   PCons consAST argsAST -> do

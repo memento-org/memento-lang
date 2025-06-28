@@ -9,7 +9,7 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 
-module Language.Memento.Data.Ty (TyF (..), TyVarF (..), Ty, UnsolvedTy, TyVariable, TyGeneric, TyConstructor, formatUnsolvedTy, formatTy, TypeScheme (..), formatTypeScheme, substituteGenerics, assignTypeToScheme, unsolvedTyToTy, substituteTyVar, typeVars, tyToUnsolvedTy) where
+module Language.Memento.Data.Ty (TyF (..), TyVarF (..), Literal (..), Ty, UnsolvedTy, TyVariable, TyGeneric, TyConstructor, formatUnsolvedTy, formatTy, TypeScheme (..), formatTypeScheme, substituteGenerics, assignTypeToScheme, unsolvedTyToTy, substituteTyVar, typeVars, tyToUnsolvedTy) where
 
 import           Data.Foldable                            (fold)
 import qualified Data.Map                                 as Map

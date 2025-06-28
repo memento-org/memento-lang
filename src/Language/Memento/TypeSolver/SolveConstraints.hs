@@ -105,7 +105,7 @@ decomposeConstraint varMap bounds = \case
     | containsNoVars t1 && containsNoVars t2 ->
         if checkSubtype varMap bounds t1 t2
           then Right (Set.empty, Set.empty)
-          else Left $ "Contradiction found: (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ ")"
+          else Left $ "Contradiction found (while decomposing): (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ ")"
   IsSubtypeOf t1 t2 -> case (projectFix t1, projectFix t2) of
     (Just t1F, Just t2F) -> decomposeByStructure t1F t2F t1 t2
     _                    -> Right (Set.singleton (IsSubtypeOf t1 t2), Set.empty) -- Type variables, leave for branching
@@ -137,7 +137,7 @@ decomposeConstraint varMap bounds = \case
                     ]
                 )
         | otherwise -> Left $ "Type constructor mismatch or arity mismatch: " ++ T.unpack name1 ++ " vs " ++ T.unpack name2
-      _ -> Left $ "Contradiction found: (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ "), while decomposing constraints"
+      _ -> Left $ "Contradiction found (error state): (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ "), while decomposing constraints"
 
 -- | Calculate bounds for a type variable
 calculateBounds :: TyVariable -> Set Constraint -> Bounds
@@ -213,8 +213,8 @@ branchTyVarFunction var t2 = case projectFix t2 of
   Just (TFunction args ret) ->
     let argVars = [var <> "_arg_" <> T.pack (show n) | n <- [1 .. length args]]
         retVar = var <> "_ret"
-        argVarTypes = [injectFix (TGeneric argVar) | argVar <- argVars]
-        retVarType = injectFix (TGeneric retVar)
+        argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
+        retVarType = injectFix (TyVar retVar)
         substIfNever = Map.singleton var tNever
         substIfFunc = Map.singleton var (injectFix $ TFunction argVarTypes retVarType)
      in Just
@@ -231,8 +231,8 @@ branchFunctionTyVar t1 var = case projectFix t1 of
   Just (TFunction args ret) ->
     let argVars = [var <> "_arg_" <> T.pack (show n) | n <- [1 .. length args]]
         retVar = var <> "_ret"
-        argVarTypes = [injectFix (TGeneric argVar) | argVar <- argVars]
-        retVarType = injectFix (TGeneric retVar)
+        argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
+        retVarType = injectFix (TyVar retVar)
         substIfUnknown = Map.singleton var tUnknown
         substIfFunc = Map.singleton var (injectFix $ TFunction argVarTypes retVarType)
      in Just
@@ -249,7 +249,7 @@ branchTyVarApplication varMap var t2 = case projectFix t2 of
   Just (TApplication name args) -> case Map.lookup name varMap of
     Just (variances, _) ->
       let argVars = [var <> "_arg_" <> T.pack (show n) | n <- [1 .. length args]]
-          argVarTypes = [injectFix (TGeneric argVar) | argVar <- argVars]
+          argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
           substIfNever = Map.singleton var tNever
           substIfApp = Map.singleton var (injectFix $ TApplication name argVarTypes)
        in Just
@@ -266,7 +266,7 @@ branchApplicationTyVar varMap t1 var = case projectFix t1 of
   Just (TApplication name args) -> case Map.lookup name varMap of
     Just (variances, _) ->
       let argVars = [var <> "_arg_" <> T.pack (show n) | n <- [1 .. length args]]
-          argVarTypes = [injectFix (TGeneric argVar) | argVar <- argVars]
+          argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
           substIfUnknown = Map.singleton var tUnknown
           substIfApp = Map.singleton var (injectFix $ TApplication name argVarTypes)
        in Just
@@ -381,7 +381,7 @@ checkContradictions varMap genMap cs = mapM_ check $ Set.toList cs
     | containsNoVars t1 && containsNoVars t2 =
         if checkSubtype varMap genMap t1 t2
           then Right ()
-          else Left $ "Contradiction found: (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ ")"
+          else Left $ "Contradiction found (while final check): (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ ")"
   check _ = Right ()
 
 -- | Collect final substitutions from propagated constraints
@@ -429,7 +429,7 @@ applySubstConstraint subst (IsSubtypeOf t1 t2) =
 -- | Apply substitution safely, avoiding infinite loops by applying in order
 applySubstType :: Substitution -> UnsolvedTy -> UnsolvedTy
 applySubstType subst ty =
-  let applySubst = \v -> Map.findWithDefault (injectFix (TGeneric v)) v subst
+  let applySubst = \v -> Map.findWithDefault (injectFix (TyVar v)) v subst
   in substituteTyVar applySubst ty
 
 -- Type checking helpers
