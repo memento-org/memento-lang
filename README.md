@@ -13,14 +13,15 @@ The Memento Compiler is a compiler for the Memento programming language, targeti
 
 ## Current Status
 
-🚧 **Early Development** - Currently only parsing is implemented. Type checking and code generation are not yet available.
+✅ **Functional Compiler** - The compiler now supports parsing, JavaScript code generation, and executable output. (Type checking and inference are in development)
 
 ## Installation
 
 ### Prerequisites
 
 - [Stack](https://docs.haskellstack.org/en/stable/README/) (Haskell build tool)
-- GHC 9.6.7 (will be installed automatically by Stack)
+- [Node.js](https://nodejs.org/) (for running compiled JavaScript)
+- GHC 9.8.4 (will be installed automatically by Stack)
 
 ### Building from Source
 
@@ -46,21 +47,35 @@ memento-compiler parse example.mmt
 
 This will parse the file and display the Abstract Syntax Tree (AST) if successful, or show parse errors if the syntax is invalid.
 
-### Other Commands (Not Yet Implemented)
+### Type Check a Memento File (Partial Implementation)
 
 ```bash
-# Type check a file (not implemented)
 memento-compiler check example.mmt
+```
 
-# Compile to JavaScript (not implemented)
+This will parse the file and perform partial type analysis, displaying a typed AST with unsolved type variables. Full type checking and inference are still in development.
+
+### Compile to JavaScript
+
+```bash
 memento-compiler compile example.mmt
 ```
+
+This will compile the Memento source to JavaScript and save it in the `dist/` directory.
+
+### Compile and Run
+
+```bash
+memento-compiler run example.mmt
+```
+
+This will compile the Memento source to JavaScript and automatically execute it with Node.js. If your program has a `main` function, it will be called and its result displayed via `console.log()`.
 
 ## Example Memento Code
 
 ```memento
 // Data type definition
-data Option {
+data Option<auto> {
   fn Some<T>(value: T) -> Option<T>,
   fn None<T>() -> Option<T>,
 };
@@ -74,7 +89,12 @@ fn map<T, U>(f: fn (x: T) -> U, opt: Option<T>) -> Option<U> {
 };
 
 // Value definition
-val result = map(fn (x) -> x + 1, Some(42));
+val result: Option<number> = map(fn (x: number) -> x + 1, Some(42));
+
+// Main function (entry point)
+fn main() -> number {
+  42
+};
 ```
 
 ## Language Features
