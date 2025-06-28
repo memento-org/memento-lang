@@ -9,7 +9,7 @@ import           Language.Memento.Data.AST.Program               (Program (Progr
 import           Language.Memento.Data.AST.Tag                   (KDefinition,
                                                                   KProgram)
 import           Language.Memento.Data.Functor.Combinator.Higher (Family,
-                                                                  Wapper)
+                                                                  Wrapper)
 import           Language.Memento.Parser.Core                    (sc)
 import           Text.Megaparsec                                 (MonadParsec,
                                                                   eof, many)
@@ -17,7 +17,7 @@ import           Text.Megaparsec                                 (MonadParsec,
 -- | Parse a program, which consists of a series of definitions
 parseProgram ::
   forall f m s. (MonadParsec s Text m) =>
-  Wapper m Program f ->
+  Wrapper m Program f ->
   Family m f ->
   m (f KProgram)
 parseProgram wrap r = wrap $ do

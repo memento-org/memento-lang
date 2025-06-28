@@ -12,7 +12,7 @@ import           Language.Memento.Data.AST.Tag                   (KLiteral,
                                                                   KTypeVariable,
                                                                   KVariable)
 import           Language.Memento.Data.Functor.Combinator.Higher (Family,
-                                                                  Wapper)
+                                                                  Wrapper)
 import           Language.Memento.Parser.Core                    (parseAngleBrackets,
                                                                   parseParens,
                                                                   parseReservedWord,
@@ -25,7 +25,7 @@ import           Text.Megaparsec                                 (MonadParsec,
 -- | Parse a type with union and intersection support
 parseMType ::
   forall f m s. (MonadParsec s Text m) =>
-  Wapper m MType f -> -- wrapper function
+  Wrapper m MType f -> -- wrapper function
   Family m f ->
   m (f KType)
 parseMType wrap r = wrap parseTypeUnion

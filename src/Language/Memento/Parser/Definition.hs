@@ -9,14 +9,15 @@ import           Control.Applicative                             ((<|>))
 import           Data.Text                                       (Text)
 import           GHC.List                                        (List)
 import           Language.Memento.Data.AST.Definition            (ConstructorDef (ConstructorDef),
-                                                                  Definition (DataDef, FnDef, TypeDef, ValDef))
+                                                                  Definition (DataDef, FnDef, TypeDef, ValDef),
+                                                                  SyntaxVariance (..))
 import           Language.Memento.Data.AST.Tag                   (KBlock,
                                                                   KDefinition,
                                                                   KExpr, KType,
                                                                   KTypeVariable,
                                                                   KVariable)
 import           Language.Memento.Data.Functor.Combinator.Higher (Family,
-                                                                  Wapper)
+                                                                  Wrapper)
 import           Language.Memento.Parser.Core                    (parseAngleBrackets,
                                                                   parseBraces,
                                                                   parseParens,
@@ -28,7 +29,7 @@ import           Text.Megaparsec                                 (MonadParsec,
                                                                   (<?>))
 
 parseDefinition :: forall f m s. (MonadParsec s Text m) =>
-  Wapper m Definition f ->
+  Wrapper m Definition f ->
   Family m f ->
   m (f KDefinition)
 parseDefinition wrap r = wrap $
@@ -77,9 +78,22 @@ parseDataDefinition ::
 parseDataDefinition r = do
   parseReservedWord "data"
   dataName <- r @KVariable
+  variances <- parseAngleBrackets $ sepEndBy parseVariance (parseSymbol ",")
   constructors <- parseBraces $ sepEndBy (parseConstructorDef r) (parseSymbol ",")
   parseSymbol ";"
-  return $ DataDef dataName constructors
+  return $ DataDef dataName variances constructors
+
+parseVariance ::
+  forall m s. (MonadParsec s Text m) => m SyntaxVariance
+parseVariance = choose
+  [ parseReservedWord "auto" >> return SVAuto <?> "auto variance"
+  , parseReservedWord "in" >> return SVIn <?> "in variance"
+  , parseReservedWord "out" >> return SVOut <?> "out variance"
+  , parseReservedWord "inout" >> return SVInOut <?> "inout variance"
+  , parseReservedWord "phantom" >> return SVPhantom <?> "phantom variance"
+  ]
+ where
+  choose = foldr1 (<|>) . map try
 
 parseValDefinition ::
   forall f m s. (MonadParsec s Text m) => Family m f -> m (Definition f KDefinition)

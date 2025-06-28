@@ -12,7 +12,8 @@
 module Language.Memento.Data.AST.Metadata (UniqueId, Metadata (..), propagateMetadata) where
 
 import           Data.Kind                                   (Type)
-import           Language.Memento.Data.Functor.Higher        (HFunctor (hmap))
+import           Language.Memento.Data.Functor.Higher        (HFunctor (hmap),
+                                                              HPhantom (..))
 import           Language.Memento.Data.NaturalTransformation (type (~>))
 import           Text.Megaparsec                             (SourcePos)
 
@@ -33,3 +34,6 @@ instance HFunctor Metadata where
   hmap :: (f ~> g) -> Metadata f ~> Metadata g
   hmap _ = \case
     Metadata pos1 pos2 -> Metadata pos1 pos2
+
+instance HPhantom Metadata where
+  hCoerce (Metadata pos1 pos2) = Metadata pos1 pos2

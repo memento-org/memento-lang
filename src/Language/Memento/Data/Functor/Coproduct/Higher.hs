@@ -2,8 +2,10 @@
 {-# LANGUAGE EmptyCase             #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE InstanceSigs          #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE TypeFamilies          #-}
@@ -16,7 +18,9 @@ module Language.Memento.Data.Functor.Coproduct.Higher (
   HInjective (..),
   IsVoidIn (..),
   SafeHProjective (..),
+  HInhabitOnly (..),
   HCoproduct,
+  (??:),
 ) where
 
 import           Data.Kind                                   (Type)
@@ -84,12 +88,21 @@ instance (IsVoidIn h1 a, IsVoidIn h2 a) => IsVoidIn (h1 :++: h2) a where
 class SafeHProjective h1 h2 a where
   hSafeProject :: h2 f a -> h1 f a
 
-instance {-# OVERLAPPING #-} (h2 `IsVoidIn` a) => SafeHProjective h1 (h2 :++: h1) a where
-  hSafeProject :: (h2 :++: h1) f a -> h1 f a
-  hSafeProject (HInjL h2) = hAbsurd h2
-  hSafeProject (HInjR h1) = h1
+instance {-# OVERLAPPING #-} (h2 `IsVoidIn` a) => SafeHProjective h1 (h1 :++: h2) a where
+  hSafeProject :: (h1 :++: h2) f a -> h1 f a
+  hSafeProject (HInjL h1) = h1
+  hSafeProject (HInjR h2) = hAbsurd h2
 
-instance {-# OVERLAPPABLE #-} (h3 `IsVoidIn` a, SafeHProjective h1 h2 a) => SafeHProjective h1 (h2 :++: h3) a where
-  hSafeProject :: (h2 :++: h3) f a -> h1 f a
-  hSafeProject (HInjL h2) = hSafeProject h2
-  hSafeProject (HInjR h3) = hAbsurd h3
+instance {-# OVERLAPPABLE #-} (h3 `IsVoidIn` a, SafeHProjective h1 h2 a) => SafeHProjective h1 (h3 :++: h2) a where
+  hSafeProject :: (h3 :++: h2) f a -> h1 f a
+  hSafeProject (HInjL h3) = hAbsurd h3
+  hSafeProject (HInjR h2) = hSafeProject h2
+
+class HInhabitOnly h a where
+  hInhabitOnly :: forall f b. h f b -> h f a
+
+-- | Combinator for building coproduct handlers
+(??:) :: (h1 f a -> r) -> (h2 f a -> r) -> ((h1 :++: h2) f a -> r)
+(??:) handler restHandler = \case
+  HInjL fa -> handler fa
+  HInjR rest -> restHandler rest

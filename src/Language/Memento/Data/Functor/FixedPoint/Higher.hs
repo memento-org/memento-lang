@@ -1,9 +1,12 @@
+{-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE PolyKinds            #-}
 {-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Language.Memento.Data.Functor.FixedPoint.Higher (HFix (..), extractHFix, injectHFix, projectHFix, safeProjectHFix) where
+module Language.Memento.Data.Functor.FixedPoint.Higher (HFix (..), extractHFix, injectHFix, projectHFix, safeProjectHFix, safeProjectVia) where
 
 import           Language.Memento.Data.Functor.Coproduct.Higher (HInjective (hInject, hProject),
                                                                  SafeHProjective (hSafeProject))
@@ -30,3 +33,6 @@ projectHFix (HFix h) = hProject h
 
 safeProjectHFix :: forall h h' a. (SafeHProjective h h' a) => HFix h' a -> h (HFix h') a
 safeProjectHFix (HFix h) = hSafeProject h
+
+safeProjectVia :: forall hVia h h' a. (HExtractive hVia h, SafeHProjective h' hVia a) => HFix h a -> h' (HFix h) a
+safeProjectVia ast = hSafeProject @h' $ extractHFix @hVia ast

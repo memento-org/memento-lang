@@ -60,9 +60,23 @@ instance {-# OVERLAPPABLE #-} (Injective h1 h2) => Injective h1 (h3 :+: h2) wher
 instance Functor VoidF where
   fmap _ v = case v of {}
 
+instance Foldable VoidF where
+  foldMap _ v = case v of {}
+
+instance Traversable VoidF where
+  traverse _ v = case v of {}
+
 instance (Functor f1, Functor f2) => Functor (f1 :+: f2) where
   fmap f (InjL h) = InjL (fmap f h)
   fmap f (InjR h) = InjR (fmap f h)
+
+instance (Foldable f1, Foldable f2) => Foldable (f1 :+: f2) where
+  foldMap f (InjL h) = foldMap f h
+  foldMap f (InjR h) = foldMap f h
+
+instance (Traversable f1, Traversable f2) => Traversable (f1 :+: f2) where
+  traverse f (InjL h) = InjL <$> traverse f h
+  traverse f (InjR h) = InjR <$> traverse f h
 
 -- | Combinator for building coproduct handlers
 (?:) :: (f1 a -> r) -> (f2 a -> r) -> ((f1 :+: f2) a -> r)

@@ -23,6 +23,8 @@ import           Language.Memento.Data.Functor.Higher (HFunctor (hmap))
 data (h1 :**: h2) (f :: k -> Type) a
   = (h1 f a) :**: (h2 f a)
 
+infixr 5 :**:
+
 deriving instance (Show (h1 f a), Show (h2 f a)) => Show ((h1 :**: h2) f a)
 deriving instance (Eq (h1 f a), Eq (h2 f a)) => Eq ((h1 :**: h2) f a)
 deriving instance (Ord (h1 f a), Ord (h2 f a)) => Ord ((h1 :**: h2) f a)

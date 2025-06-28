@@ -12,7 +12,7 @@ import qualified Data.Text                                       as T
 import           Language.Memento.Data.AST.Literal               (Literal (BoolLiteral, IntLiteral, NumberLiteral, StringLiteral))
 import           Language.Memento.Data.AST.Tag                   (KLiteral)
 import           Language.Memento.Data.Functor.Combinator.Higher (Family,
-                                                                  Wapper)
+                                                                  Wrapper)
 import           Language.Memento.Parser.Core                    (parseLexeme,
                                                                   parseReservedWord)
 import           Text.Megaparsec                                 (MonadParsec (try),
@@ -27,7 +27,7 @@ import           Text.Megaparsec.Char.Lexer                      as L (charLiter
 parseLiteral ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Literal f ->
+  Wrapper m Literal f ->
   Family m f -> -- Recursive
   m (f KLiteral)
 parseLiteral wrap r = wrap $

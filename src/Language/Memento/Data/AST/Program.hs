@@ -15,7 +15,7 @@ module Language.Memento.Data.AST.Program (Program (..)) where
 import           GHC.Base
 import           Language.Memento.Data.AST.Tag                  (KDefinition,
                                                                  KProgram)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
 import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))
 import           Language.Memento.Data.Type.NonEq               (type (/~))
@@ -35,3 +35,7 @@ instance HFunctor Program where
 instance (a /~ KProgram) => Program `IsVoidIn` a where
   hAbsurd :: Program f a -> b
   hAbsurd = \case {}
+
+instance HInhabitOnly Program KProgram where
+  hInhabitOnly = \case
+    Program ds -> Program ds

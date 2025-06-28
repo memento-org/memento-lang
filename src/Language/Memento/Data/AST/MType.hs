@@ -19,7 +19,7 @@ import           Language.Memento.Data.AST.Tag                  (KLiteral,
                                                                  KType,
                                                                  KTypeVariable,
                                                                  KVariable)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
 import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))
 import           Language.Memento.Data.Type.NonEq               (type (/~))
@@ -64,3 +64,18 @@ instance HFunctor MType where
 instance (a /~ KType) => MType `IsVoidIn` a where
   hAbsurd :: MType f a -> b
   hAbsurd = \case {}
+
+instance HInhabitOnly MType KType where
+  hInhabitOnly = \case
+    TVar v -> TVar v
+    TNumber -> TNumber
+    TInt -> TInt
+    TBool -> TBool
+    TString -> TString
+    TFunction ts e -> TFunction ts e
+    TUnknown -> TUnknown
+    TNever -> TNever
+    TLiteral l -> TLiteral l
+    TUnion ts -> TUnion ts
+    TIntersection ts -> TIntersection ts
+    TApplication base args -> TApplication base args

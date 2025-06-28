@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Language.Memento.Data.Functor.Combinator.Higher (quantify, (<:>), tie, Family, Wapper) where
+module Language.Memento.Data.Functor.Combinator.Higher (quantify, (<:>), tie, Family, Wrapper) where
 
 import           Control.Applicative                            (Alternative (empty))
 import           Data.Typeable                                  (Typeable, eqT,
@@ -15,7 +15,7 @@ import           Language.Memento.Data.Functor.Coproduct.Higher (HInjective (hIn
 
 type Family m f = forall x. (Typeable x) => m (f x)
 
-type Wapper m h f = forall a. m (h f a) -> m (f a)
+type Wrapper m h f = forall a. m (h f a) -> m (f a)
 
 -- | Extend a process (exclusively parser) from some type `a` to all types `x`. (if a /= x, then empty)
 quantify ::

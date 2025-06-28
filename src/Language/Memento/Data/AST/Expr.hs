@@ -20,7 +20,7 @@ import           Language.Memento.Data.AST.Tag                  (KBlock, KExpr,
                                                                  KPattern,
                                                                  KType,
                                                                  KVariable)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
 import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))
 import           Language.Memento.Data.Type.NonEq               (type (/~))
@@ -40,7 +40,7 @@ data Expr (f :: Type -> Type) a where
   ELiteral :: f KLiteral -> Expr f KExpr
   ELambda :: List (f KPattern, Maybe (f KType)) -> f KExpr -> Expr f KExpr
   EApply :: f KExpr -> List (f KExpr) -> Expr f KExpr
-  EMatch :: List (f KExpr) -> List ([(f KPattern, Maybe (f KType))], f KExpr) -> Expr f KExpr -- Match はλ式の集合
+  EMatch :: List (f KExpr) -> List (List (f KPattern, Maybe (f KType)), f KExpr) -> Expr f KExpr -- Match はλ式の集合
   EIf :: f KExpr -> f KExpr -> f KExpr -> Expr f KExpr
   EBinOp :: BinOp  -> f KExpr -> f KExpr -> Expr f KExpr
   EBlock :: f KBlock -> Expr f KExpr
@@ -150,3 +150,22 @@ instance HFunctor Block where
 instance (a /~ KBlock) => Block `IsVoidIn` a where
   hAbsurd :: Block f a -> b
   hAbsurd = \case {}
+
+instance HInhabitOnly Expr KExpr where
+  hInhabitOnly = \case
+    EVar v -> EVar v
+    ELiteral l -> ELiteral l
+    ELambda ps e -> ELambda ps e
+    EApply e es -> EApply e es
+    EMatch es cs -> EMatch es cs
+    EIf e1 e2 e3 -> EIf e1 e2 e3
+    EBinOp op e1 e2 -> EBinOp op e1 e2
+    EBlock b -> EBlock b
+
+instance HInhabitOnly Let KLet where
+  hInhabitOnly = \case
+    Let p mt e -> Let p mt e
+
+instance HInhabitOnly Block KBlock where
+  hInhabitOnly = \case
+    Block lets expr -> Block lets expr

@@ -16,8 +16,9 @@ import           Data.Kind                                      (Type)
 import           Data.Text                                      (Text)
 import           Language.Memento.Data.AST.Tag                  (KTypeVariable,
                                                                  KVariable)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
-import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
+import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap),
+                                                                 HPhantom (..))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))
 import           Language.Memento.Data.Type.NonEq               (type (/~))
 
@@ -52,3 +53,17 @@ instance (a /~ KVariable) => Variable `IsVoidIn` a where
 instance (a /~ KTypeVariable) => TypeVariable `IsVoidIn` a where
   hAbsurd :: TypeVariable f a -> b
   hAbsurd = \case {}
+
+instance HPhantom Variable where
+  hCoerce (Var v) = Var v
+
+instance HPhantom TypeVariable where
+  hCoerce (TypeVar v) = TypeVar v
+
+instance HInhabitOnly Variable KVariable where
+  hInhabitOnly = \case
+    Var v -> Var v
+
+instance HInhabitOnly TypeVariable KTypeVariable where
+  hInhabitOnly = \case
+    TypeVar v -> TypeVar v

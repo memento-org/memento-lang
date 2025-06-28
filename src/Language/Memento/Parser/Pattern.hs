@@ -13,7 +13,7 @@ import           Language.Memento.Data.AST.Tag                   (KLiteral,
                                                                   KPattern,
                                                                   KVariable)
 import           Language.Memento.Data.Functor.Combinator.Higher (Family,
-                                                                  Wapper)
+                                                                  Wrapper)
 import           Language.Memento.Parser.Core                    (parseParens,
                                                                   parseSymbol)
 import           Text.Megaparsec                                 (MonadParsec,
@@ -24,7 +24,7 @@ import           Text.Megaparsec                                 (MonadParsec,
 -- | Parse a pattern
 parsePattern ::
   forall f m s. (MonadParsec s Text m) =>
-  Wapper m Pattern f ->
+  Wrapper m Pattern f ->
   Family m f ->
   m (f KPattern)
 parsePattern wrap r = wrap $

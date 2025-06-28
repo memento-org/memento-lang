@@ -6,13 +6,17 @@
 
 module Language.Memento.Parser (parseAST) where
 
+{-
+This module defines the parser for Maybe AST.
+-}
+
 import           Data.Text                                       (Text)
 import           Data.Typeable                                   (Typeable)
 import           GHC.Base                                        (Void, (<|>))
 import           Language.Memento.Data.AST                       (AST, Syntax)
 import           Language.Memento.Data.AST.Metadata              (Metadata,
                                                                   propagateMetadata)
-import           Language.Memento.Data.Functor.Combinator.Higher (Wapper,
+import           Language.Memento.Data.Functor.Combinator.Higher (Wrapper,
                                                                   quantify, tie)
 import           Language.Memento.Data.Functor.Coproduct.Higher  (HInjective (hInject))
 import           Language.Memento.Data.Functor.FixedPoint.Higher (HFix (HFix),
@@ -56,7 +60,7 @@ wrapper ::
   , HInjective h2 Syntax
   , MonadParsec s Text m
   ) =>
-  Wapper m h2 (HFix h)
+  Wrapper m h2 (HFix h)
 wrapper p = HFix <$> parseMetadata (hSingleton . (hInject @_ @h2 @Syntax) <$> p)
 
 -- | Propagate metadata

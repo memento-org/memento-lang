@@ -15,8 +15,9 @@ module Language.Memento.Data.AST.Literal (Literal (..)) where
 import           Data.Kind                                      (Type)
 import           Data.Text                                      (Text)
 import           Language.Memento.Data.AST.Tag                  (KLiteral)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
-import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
+import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap),
+                                                                 HPhantom (..))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))
 import           Language.Memento.Data.Type.NonEq               (type (/~))
 
@@ -41,3 +42,17 @@ instance HFunctor Literal where
 instance (a /~ KLiteral) => Literal `IsVoidIn` a where
   hAbsurd :: Literal f a -> b
   hAbsurd = \case {}
+
+instance HPhantom Literal where
+  hCoerce = \case
+    NumberLiteral n -> NumberLiteral n
+    BoolLiteral b -> BoolLiteral b
+    StringLiteral s -> StringLiteral s
+    IntLiteral i -> IntLiteral i
+
+instance HInhabitOnly Literal KLiteral where
+  hInhabitOnly = \case
+    NumberLiteral n -> NumberLiteral n
+    BoolLiteral b -> BoolLiteral b
+    StringLiteral s -> StringLiteral s
+    IntLiteral i -> IntLiteral i

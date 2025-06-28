@@ -21,7 +21,7 @@ import           Language.Memento.Data.AST.Tag                   (KBlock, KExpr,
                                                                   KType,
                                                                   KVariable)
 import           Language.Memento.Data.Functor.Combinator.Higher (Family,
-                                                                  Wapper)
+                                                                  Wrapper)
 import           Language.Memento.Parser.Core                    (parseBraces,
                                                                   parseParens,
                                                                   parseReservedWord,
@@ -68,7 +68,7 @@ operatorTable propagate  =
 parseTermBase ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Expr f ->
+  Wrapper m Expr f ->
   ((f KExpr -> f KExpr -> Expr f KExpr) -> f KExpr -> f KExpr -> f KExpr) -> -- propagate function
   Family m f ->
   m (f KExpr)
@@ -102,7 +102,7 @@ parseTermBase wrap propagate r =
 parseTerm ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Expr f ->
+  Wrapper m Expr f ->
   ((f KExpr -> f KExpr -> Expr f KExpr) -> f KExpr -> f KExpr -> f KExpr) -> -- propagate function
   Family m f ->
   m (f KExpr)
@@ -127,7 +127,7 @@ parseTerm wrap propagate r = do
 parseLambdaExpr ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Expr f ->
+  Wrapper m Expr f ->
   Family m f ->
   m (f KExpr)
 parseLambdaExpr wrap r = wrap $ do
@@ -149,7 +149,7 @@ parseLambdaExpr wrap r = wrap $ do
 parseMatchExpr ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Expr f ->
+  Wrapper m Expr f ->
   Family m f ->
   m (f KExpr)
 parseMatchExpr wrap r = wrap $ do
@@ -178,7 +178,7 @@ parseMatchExpr wrap r = wrap $ do
 parseTermAndBinOp ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Expr f ->
+  Wrapper m Expr f ->
   ((f KExpr -> f KExpr -> Expr f KExpr) -> f KExpr -> f KExpr -> f KExpr) -> -- propagate function
   Family m f ->
   m (f KExpr)
@@ -189,7 +189,7 @@ parseTermAndBinOp wrap propagate r =
 parseExpr ::
   forall f m s.
   (MonadParsec s Text m) =>
-  Wapper m Expr f ->
+  Wrapper m Expr f ->
   (( f KExpr -> f KExpr -> Expr f KExpr) -> f KExpr -> f KExpr -> f KExpr) -> -- propagate function
   Family m f ->
   m (f KExpr)
@@ -203,7 +203,7 @@ parseExpr wrap propagate r =
 -- | Parse a let binding
 parseLet ::
   forall f m s. (MonadParsec s Text m) =>
-  Wapper m Let f ->
+  Wrapper m Let f ->
   Family m f ->
   m (f KLet)
 parseLet wrap r = wrap $ do
@@ -217,7 +217,7 @@ parseLet wrap r = wrap $ do
 
 parseBlock ::
   forall f m s. (MonadParsec s Text m) =>
-  Wapper m Block f ->
+  Wrapper m Block f ->
   Family m f ->
   m (f KBlock)
 parseBlock wrap r = wrap $ do
@@ -225,4 +225,3 @@ parseBlock wrap r = wrap $ do
     lets <- many (r @KLet)
     expr <- r @KExpr
     return $ Block lets expr
-

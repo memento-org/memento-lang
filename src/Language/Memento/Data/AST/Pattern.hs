@@ -17,7 +17,7 @@ import           GHC.Base                                       (List)
 import           Language.Memento.Data.AST.Tag                  (KLiteral,
                                                                  KPattern,
                                                                  KVariable)
-import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..))
+import           Language.Memento.Data.Functor.Coproduct.Higher (IsVoidIn (..), HInhabitOnly (..))
 import           Language.Memento.Data.Functor.Higher           (HFunctor (hmap))
 import           Language.Memento.Data.NaturalTransformation    (type (~>))
 import           Language.Memento.Data.Type.NonEq               (type (/~))
@@ -48,3 +48,10 @@ instance HFunctor Pattern where
 instance (a /~ KPattern) => Pattern `IsVoidIn` a where
   hAbsurd :: Pattern f a -> b
   hAbsurd = \case {}
+
+instance HInhabitOnly Pattern KPattern where
+  hInhabitOnly = \case
+    PVar v -> PVar v
+    PWildcard -> PWildcard
+    PLiteral l -> PLiteral l
+    PCons v ps -> PCons v ps

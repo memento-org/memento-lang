@@ -90,6 +90,12 @@ reservedWords =
     "with"
   , "effect"
   , "handle"
+  -- variances
+  , "auto"
+  , "in"
+  , "out"
+  , "inout"
+  , "phantom"
   ]
 
 -- | 予約語
