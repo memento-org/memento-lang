@@ -1,0 +1,45 @@
+{
+  "name": "memento-language-support",
+  "displayName": "Memento Language Support",
+  "description": "Language support for Memento programming language",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": ["Programming Languages"],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:memento",
+    "workspaceContains:**/*.mmt"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "memento",
+      "aliases": ["Memento", "memento"],
+      "extensions": [".mmt"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "memento",
+      "scopeName": "source.memento",
+      "path": "./syntaxes/memento.tmLanguage.json"
+    }],
+    "commands": [{
+      "command": "memento.test",
+      "title": "Test Memento LSP"
+    }]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.60.0",
+    "@types/node": "^16.x",
+    "typescript": "^4.x"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.0.0"
+  }
+}

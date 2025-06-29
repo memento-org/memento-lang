@@ -42,9 +42,11 @@ library
     , lens
     , lsp >=2.7
     , lsp-types >=2.3
+    , megaparsec
     , memento-compiler
     , mtl
     , prettyprinter
+    , sorted-list
     , text
     , transformers
   default-language: Haskell2010
@@ -67,10 +69,12 @@ executable memento-lsp-exe
     , lens
     , lsp >=2.7
     , lsp-types >=2.3
+    , megaparsec
     , memento-compiler
     , memento-lsp
     , mtl
     , prettyprinter
+    , sorted-list
     , text
     , transformers
   default-language: Haskell2010
@@ -96,10 +100,12 @@ test-suite memento-lsp-test
     , lens
     , lsp >=2.7
     , lsp-types >=2.3
+    , megaparsec
     , memento-compiler
     , memento-lsp
     , mtl
     , prettyprinter
+    , sorted-list
     , text
     , transformers
   default-language: Haskell2010

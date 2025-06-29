@@ -27,6 +27,8 @@ dependencies:
   - transformers
   - co-log-core
   - prettyprinter
+  - megaparsec
+  - sorted-list
 
 ghc-options:
   - -Wall
@@ -52,6 +54,7 @@ executables:
       - -with-rtsopts=-N
     dependencies:
       - memento-lsp
+  
 
 tests:
   memento-lsp-test:

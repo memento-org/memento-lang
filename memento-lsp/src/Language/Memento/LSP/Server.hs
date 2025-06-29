@@ -1,9 +1,11 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DisambiguateRecordFields  #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeApplications          #-}
 
 module Language.Memento.LSP.Server
-  ( runServer
+  ( runMementoServer
   ) where
 
 import           Colog.Core                                (LogAction (..),
@@ -23,12 +25,12 @@ import qualified Prettyprinter.Render.Text                 as PP
 import           System.IO                                 (stderr)
 
 -- | Run the Memento Language Server
-runServer :: IO ()
-runServer = do
-  exitCode <- runServerWith serverDefinition
-  case exitCode of
-    0 -> putStrLn "Server exited successfully"
-    n -> putStrLn $ "Server exited with code: " ++ show n
+runMementoServer :: IO ()
+runMementoServer = do
+  putStrLn "[Info] Starting server"
+  result <- Language.LSP.Server.runServer serverDefinition
+  putStrLn $ "[Info] Server stopped with result: " ++ show result
+  pure ()
 
 -- | Server definition with configuration
 serverDefinition :: ServerDefinition ()
@@ -37,7 +39,9 @@ serverDefinition = ServerDefinition
   , onConfigChange = const $ pure ()
   , defaultConfig = ()
   , configSection = "memento"
-  , doInitialize = \env _req -> pure $ Right env
+  , doInitialize = \env _req -> do
+      putStrLn "[Debug] Initializing LSP server"
+      pure $ Right env
   , staticHandlers = \_caps -> handlers
   , interpretHandler = \env -> Iso (runLspT env) liftIO
   , options = defaultOptions
@@ -52,10 +56,10 @@ serverDefinition = ServerDefinition
   }
 
 -- | Default options for the server
-defaultOptions :: Options
-defaultOptions = defaultOptions
+mementoOptions :: Options
+mementoOptions = Language.LSP.Server.defaultOptions
   { optServerInfo = Just $ ServerInfo
-      { _name = "memento-lsp"
-      , _version = Just "0.1.0.0"
+      { _name = ("memento-lsp" :: Text)
+      , _version = (Just "0.1.0.0" :: Maybe Text)
       }
   }

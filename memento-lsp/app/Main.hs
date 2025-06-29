@@ -1,6 +1,6 @@
 module Main where
 
-import Language.Memento.LSP.Server (runServer)
+import Language.Memento.LSP.Server (runMementoServer)
 
 main :: IO ()
-main = runServer
+main = runMementoServer

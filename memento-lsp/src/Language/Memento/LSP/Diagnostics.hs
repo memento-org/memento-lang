@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications  #-}
 
+{-# LANGUAGE DisambiguateRecordFields #-}
+
 module Language.Memento.LSP.Diagnostics
   ( computeDiagnostics
   ) where
@@ -17,20 +19,16 @@ import           Language.Memento.TypeSolver                (SolveError (..),
                                                              solveTypedAST)
 import           Language.Memento.TypeSolver.SolveVariances (solveVariancesFromEnv)
 import           Language.Memento.Typing                    (typeProgramWithTyCons)
-import           Text.Megaparsec                            (ParseError,
-                                                             ParseErrorBundle,
-                                                             SourcePos (..),
+import           Text.Megaparsec                            (ParseErrorBundle,
                                                              bundleErrors,
                                                              errorOffset,
-                                                             parseErrorPretty,
-                                                             unPos)
-import           Text.Megaparsec.Error                      (ParseError (..))
-import           Text.Megaparsec.Pos                        (mkPos)
+                                                             parse,
+                                                             parseErrorPretty)
 
 -- | Compute diagnostics for a Memento source file
 computeDiagnostics :: Uri -> Text -> IO [Diagnostic]
 computeDiagnostics uri content = do
-  case parseAST @KProgram (T.unpack $ getUri uri) content of
+  case parse (parseAST @KProgram) (T.unpack $ getUri uri) content of
     Left errorBundle -> 
       pure $ parseToDiagnostics errorBundle
     Right parsedProgram ->
@@ -38,7 +36,7 @@ computeDiagnostics uri content = do
         Left typingError ->
           -- TODO: Convert typing errors to diagnostics with proper positions
           pure [Diagnostic
-            { _range = Range (Position 0 0) (Position 0 0)
+            { _range = Range (Position 0 0) (Position 0 0) :: Range
             , _severity = Just DiagnosticSeverity_Error
             , _code = Nothing
             , _codeDescription = Nothing
@@ -63,7 +61,7 @@ parseToDiagnostics bundle =
     err :| _ -> [parseSingleError err]
     where
       parseSingleError e = Diagnostic
-        { _range = offsetToRange (errorOffset e) content
+        { _range = offsetToRange (errorOffset e) content :: Range
         , _severity = Just DiagnosticSeverity_Error
         , _code = Nothing
         , _codeDescription = Nothing
@@ -79,7 +77,7 @@ parseToDiagnostics bundle =
 solveErrorToDiagnostics :: SolveError -> [Diagnostic]
 solveErrorToDiagnostics = \case
   ContradictionError msg -> [Diagnostic
-    { _range = Range (Position 0 0) (Position 0 0)  -- TODO: Extract position from error
+    { _range = Range (Position 0 0) (Position 0 0) :: Range  -- TODO: Extract position from error
     , _severity = Just DiagnosticSeverity_Error
     , _code = Nothing
     , _codeDescription = Nothing
@@ -90,7 +88,7 @@ solveErrorToDiagnostics = \case
     , _data_ = Nothing
     }]
   UnsolvedVariablesError vars -> [Diagnostic
-    { _range = Range (Position 0 0) (Position 0 0)  -- TODO: Extract position from error
+    { _range = Range (Position 0 0) (Position 0 0) :: Range  -- TODO: Extract position from error
     , _severity = Just DiagnosticSeverity_Error
     , _code = Nothing
     , _codeDescription = Nothing
@@ -110,9 +108,9 @@ offsetToRange offset content =
 -- | Convert offset to line and column (0-indexed)
 offsetToLineCol :: Int -> Text -> (UInt, UInt)
 offsetToLineCol offset content =
-  let lines = T.lines $ T.take offset content
-      lineNum = fromIntegral (length lines - 1)
-      colNum = case lines of
+  let textLines = T.lines $ T.take offset content
+      lineNum = fromIntegral (length textLines - 1)
+      colNum = case textLines of
         [] -> 0
-        _  -> fromIntegral $ T.length (last lines)
+        _  -> fromIntegral $ T.length (last textLines)
   in (max 0 lineNum, colNum)

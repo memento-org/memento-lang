@@ -1,0 +1,31 @@
+// Test Memento file for LSP integration
+
+// This should work fine
+val validNumber: number = 42;
+
+// This should cause a type error 
+val typeError: number = "this is a string";
+
+// Valid function definition
+fn add(a: number, b: number) -> number {
+  a + b
+};
+
+// Function with syntax error (missing semicolon)
+fn broken(x: number) -> number {
+  x + 1
+};
+
+// Valid data type
+data Option<auto> {
+  fn Some<T>(value: T) -> Option<T>,
+  fn None<T>() -> Option<T>,
+};
+
+// Pattern matching
+fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
+  switch (opt) {
+    case (Some(value)) -> value,
+    case (None()) -> default
+  }
+};

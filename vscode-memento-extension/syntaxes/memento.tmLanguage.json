@@ -1,0 +1,64 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Memento",
+  "patterns": [
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#types"
+    }
+  ],
+  "repository": {
+    "keywords": {
+      "patterns": [{
+        "name": "keyword.control.memento",
+        "match": "\\b(fn|val|data|switch|case|if|else|let|in)\\b"
+      }]
+    },
+    "types": {
+      "patterns": [{
+        "name": "entity.name.type.memento",
+        "match": "\\b(number|string|boolean|Option|Some|None)\\b"
+      }]
+    },
+    "strings": {
+      "name": "string.quoted.double.memento",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.memento",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.memento",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.memento",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "numbers": {
+      "name": "constant.numeric.memento",
+      "match": "\\b\\d+(\\.\\d+)?\\b"
+    }
+  },
+  "scopeName": "source.memento"
+}
