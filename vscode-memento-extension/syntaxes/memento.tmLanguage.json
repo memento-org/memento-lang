@@ -1,47 +1,47 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Memento",
+  "scopeName": "source.memento",
+  "fileTypes": [
+    "mmt",
+    "memento"
+  ],
   "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#switchCases"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#parameters"
+    },
+    {
+      "include": "#returnType"
+    },
     {
       "include": "#keywords"
     },
     {
-      "include": "#strings"
-    },
-    {
-      "include": "#comments"
+      "include": "#typeAnnotations"
     },
     {
       "include": "#numbers"
     },
     {
-      "include": "#types"
+      "include": "#strings"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
     }
   ],
   "repository": {
-    "keywords": {
-      "patterns": [{
-        "name": "keyword.control.memento",
-        "match": "\\b(fn|val|data|switch|case|if|else|let|in)\\b"
-      }]
-    },
-    "types": {
-      "patterns": [{
-        "name": "entity.name.type.memento",
-        "match": "\\b(number|string|boolean|Option|Some|None)\\b"
-      }]
-    },
-    "strings": {
-      "name": "string.quoted.double.memento",
-      "begin": "\"",
-      "end": "\"",
-      "patterns": [
-        {
-          "name": "constant.character.escape.memento",
-          "match": "\\\\."
-        }
-      ]
-    },
     "comments": {
       "patterns": [
         {
@@ -56,9 +56,311 @@
       ]
     },
     "numbers": {
-      "name": "constant.numeric.memento",
-      "match": "\\b\\d+(\\.\\d+)?\\b"
+      "patterns": [
+        {
+          "name": "constant.numeric.memento",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.memento",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.memento",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.memento",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.union.memento",
+          "match": "\\|"
+        },
+        {
+          "name": "keyword.operator.intersection.memento",
+          "match": "&"
+        },
+        {
+          "name": "keyword.operator.assignment.memento",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.colon.memento",
+          "match": ":"
+        },
+        {
+          "name": "keyword.operator.comma.memento",
+          "match": ","
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.section.block.begin.memento",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.memento",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.parens.begin.memento",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parens.end.memento",
+          "match": "\\)"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.memento",
+          "match": "<"
+        },
+        {
+          "name": "punctuation.section.brackets.end.memento",
+          "match": ">"
+        }
+      ]
+    },
+    "switchCases": {
+      "patterns": [
+        {
+          "name": "meta.switch.case.memento",
+          "begin": "(case)\\b[^\n]*?\\)\\s*->\\s*",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.memento"
+            }
+          },
+          "end": "(?=,|$)",
+          "patterns": [
+            {
+              "include": "#numbers"
+            },
+            {
+              "include": "#strings"
+            },
+            {
+              "name": "storage.type.primitive.memento",
+              "match": "(?:\\b(?:number|string|bool|unknown|never)\\b)"
+            },
+            {
+              "name": "variable.other.readwrite.memento",
+              "match": "[A-Za-z_][A-Za-z0-9_]*"
+            }
+          ]
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.declaration.type.memento",
+          "begin": "(?:(data))\\b\\s+",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.memento"
+            }
+          },
+          "end": "(?=[=\\{])",
+          "patterns": [
+            {
+              "name": "entity.name.type.memento",
+              "match": "[A-Za-z_][A-Za-z0-9_]*"
+            },
+            {
+              "include": "#generic"
+            }
+          ]
+        },
+        {
+          "name": "meta.type.alias.memento",
+          "begin": "(?i)type\\b\\s+",
+          "beginCaptures": {
+            "0": {
+              "name": "keyword.control.memento"
+            }
+          },
+          "end": ";",
+          "patterns": [
+            {
+              "include": "#typeInner"
+            }
+          ]
+        },
+        {
+          "name": "meta.declaration.value.memento",
+          "begin": "(?:(val))\\b\\s+",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.memento"
+            }
+          },
+          "end": "(?=[:=])",
+          "patterns": [
+            {
+              "name": "variable.other.readwrite.memento",
+              "match": "[A-Za-z_][A-Za-z0-9_]*"
+            },
+            {
+              "include": "#generic"
+            }
+          ]
+        }
+      ]
+    },
+    "parameters": {
+      "patterns": [
+        {
+          "name": "meta.function.parameters.memento",
+          "begin": "\\(",
+          "end": "\\)",
+          "patterns": [
+            {
+              "name": "variable.parameter.memento",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)"
+            },
+            {
+              "name": "variable.parameter.memento",
+              "match": "(?!\\b(?:number|string|bool|unknown|never)\\b)[A-Za-z_][A-Za-z0-9_]*(?=\\s*[,)])"
+            },
+            {
+              "include": "#typeAnnotations"
+            },
+            {
+              "name": "punctuation.separator.parameter.memento",
+              "match": ","
+            }
+          ]
+        }
+      ]
+    },
+    "returnType": {
+      "patterns": [
+        {
+          "name": "meta.function.return-type.memento",
+          "begin": "(->)\\s*",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.operator.arrow.memento"
+            }
+          },
+          "end": "(?=\\s*[;,\\{])",
+          "patterns": [
+            {
+              "include": "#typeInner"
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.memento",
+          "match": "(?:\\b(?:data|fn|val|type|let|switch|case|auto|phantom|in|out|inout)\\b)"
+        }
+      ]
+    },
+    "typeAnnotations": {
+      "patterns": [
+        {
+          "name": "meta.type.annotation.memento",
+          "begin": ":\\s*",
+          "end": "(?=\\s*[,;=\\)\\{])",
+          "patterns": [
+            {
+              "include": "#typeInner"
+            }
+          ]
+        }
+      ]
+    },
+    "typeInner": {
+      "patterns": [
+        {
+          "name": "meta.type.function.parameters.memento",
+          "begin": "\\(",
+          "end": "\\)",
+          "patterns": [
+            {
+              "name": "variable.parameter.memento",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?=\\s*:)"
+            },
+            {
+              "name": "variable.parameter.memento",
+              "match": "(?!\\b(?:number|int|string|bool|unknown|never)\\b)[A-Za-z_][A-Za-z0-9_]*(?=\\s*[,)])"
+            },
+            {
+              "include": "#typeInner"
+            },
+            {
+              "name": "punctuation.separator.parameter.memento",
+              "match": ","
+            }
+          ]
+        },
+        {
+          "name": "storage.type.primitive.memento",
+          "match": "(?:\\b(?:number|int|string|bool|unknown|never)\\b)"
+        },
+        {
+          "name": "keyword.operator.union.memento",
+          "match": "\\|"
+        },
+        {
+          "name": "keyword.operator.intersection.memento",
+          "match": "&"
+        },
+        {
+          "include": "#keywords"
+        },
+        {
+          "include": "#generic"
+        },
+        {
+          "name": "entity.name.type.memento",
+          "match": "[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "generic": {
+      "patterns": [
+        {
+          "name": "meta.generic.memento",
+          "begin": "<",
+          "end": ">",
+          "patterns": [
+            {
+              "name": "punctuation.section.brackets.begin.memento",
+              "match": "<"
+            },
+            {
+              "include": "#typeInner"
+            },
+            {
+              "name": "punctuation.separator.parameter.memento",
+              "match": ","
+            },
+            {
+              "name": "punctuation.section.brackets.end.memento",
+              "match": ">"
+            }
+          ]
+        }
+      ]
     }
-  },
-  "scopeName": "source.memento"
+  }
 }

@@ -1,30 +1,81 @@
-// Test Memento file for LSP integration
-
-// This should work fine
-val validNumber: number = 42;
-
-// // This should cause a type error
-val typeError: number = "this is a string";
-
-// Valid function definition
-fn add(a: number, b: number) -> number {
-  a + b
-};
-
-fn broken(x: number) -> number {
-  x + 1
-};
-
-// Valid data type
+// Data definition
 data Option<auto> {
   fn Some<T>(value: T) -> Option<T>,
   fn None<T>() -> Option<T>,
 };
 
-// // Pattern matching
-// fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
-//   switch (opt) {
-//     case (Some(value)) -> value,
-//     case (None()) -> default
-//   }
-// };
+// Value definition
+
+val x : Option<number> = Some(42);
+
+// subtyping
+
+val y : Option<unknown> = x;
+
+// Function definition
+
+fn add(a: number, b: number) -> number {
+  a + b
+};
+
+
+
+// Type definition
+
+type NumOption = Option<number>;
+
+// Lambda expression
+val increment : fn (x : number) -> number
+  = fn (x) -> x;
+
+// Block expression
+val result : number = {
+  let a = 10;
+  let b = 20;
+  add(a, b)
+};
+
+// Switch expression
+fn describeNumber(n: number) -> string {
+  switch (n) {
+    case (0) -> "Zero",
+    case (1) -> "One",
+    case (2) -> "Two",
+    case (_) -> "Many"
+  }
+};
+
+// Switch with Constructors
+val describeNumber2 : fn (opt : Option<number>) -> number
+  = fn (opt) -> switch (opt) {
+    case (Some(n)) -> n,
+    case (None()) -> 0
+  };
+
+// Value with type parameters
+val id<U> : fn (x : U) -> U = fn (x) -> {
+  x
+};
+
+// Function with type parameters
+fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
+  switch (opt) {
+    case (Some(value)) -> Some(f(value)),
+    case (None()) -> None()
+  }
+};
+
+
+/*
+// Pattern matching
+fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
+  switch (opt) {
+    case (Some(value)) -> value,
+    case (None()) -> default
+  }
+};
+*/
+
+fn main() -> number {
+  id(42)
+};

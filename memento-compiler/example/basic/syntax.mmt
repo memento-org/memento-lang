@@ -18,15 +18,15 @@ fn add(a: number, b: number) -> number {
   a + b
 };
 
+
+
 // Type definition
 
 type NumOption = Option<number>;
 
 // Lambda expression
 val increment : fn (x : number) -> number
-  = fn (x) -> {
-    x + 1
-  };
+  = fn (x) -> x;
 
 // Block expression
 val result : number = {
@@ -64,6 +64,17 @@ fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
     case (None()) -> None()
   }
 };
+
+
+/*
+// Pattern matching
+fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
+  switch (opt) {
+    case (Some(value)) -> value,
+    case (None()) -> default
+  }
+};
+*/
 
 fn main() -> number {
   id(42)
