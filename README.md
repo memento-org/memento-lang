@@ -13,7 +13,7 @@ The Memento Compiler is a compiler for the Memento programming language, targeti
 
 ## Current Status
 
-✅ **Functional Compiler** - The compiler now supports parsing, JavaScript code generation, and executable output. (Type checking and inference are in development)
+✅ **Functional Compiler** - The compiler now supports parsing, type checking, JavaScript code generation, and executable output.
 
 ## Installation
 
@@ -47,13 +47,18 @@ memento-compiler parse example.mmt
 
 This will parse the file and display the Abstract Syntax Tree (AST) if successful, or show parse errors if the syntax is invalid.
 
-### Type Check a Memento File (Partial Implementation)
+### Type Check a Memento File
 
 ```bash
 memento-compiler check example.mmt
 ```
 
-This will parse the file and perform partial type analysis, displaying a typed AST with unsolved type variables. Full type checking and inference are still in development.
+This will parse the file and perform complete type checking, displaying a typed AST. The type checker supports:
+- Constraint-based type inference
+- Parametric polymorphism with generics
+- Union and intersection types
+- Subtyping relationships
+- Exhaustive pattern matching verification
 
 ### Compile to JavaScript
 
@@ -110,6 +115,15 @@ fn main() -> number {
 - **Block expressions**: `{ let x = 1; x + 1 }`
 - **Pattern matching**: `switch (expr) { case (pattern) -> result, ... }`
 
+### Type System Features
+
+- **Parametric polymorphism**: Generic functions and data types with `<T>` syntax
+- **Subtyping**: Structural typing with subtype relationships
+- **Union types**: `string | number` for values that can be multiple types
+- **Intersection types**: `A & B` for types that satisfy multiple constraints
+- **Type inference**: Automatic type deduction with constraint solving
+- **Exhaustive pattern matching**: Compiler ensures all cases are covered
+
 ### Definitions
 
 - **Value definitions**: `val x = 42;`
@@ -126,6 +140,7 @@ src/
 ├── Language/
 │   └── Memento/
 │       ├── Parser/          # Parser implementation
+│       ├── TypeSolver/      # Type checking and inference
 │       ├── Data/           # AST and data structures
 │       └── Backend/        # Code generators (JS, WASM)
 ├── app/                    # Main executable

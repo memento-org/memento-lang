@@ -8,4 +8,13 @@ and this project adheres to the
 
 ## Unreleased
 
+### Added
+- Complete type checking and inference system
+- Constraint-based type solver with polymorphism support
+- Union and intersection types with subtyping
+- Exhaustive pattern matching verification
+- Type schemes for parametric polymorphism
+- Variance-aware type parameter handling
+- Position-aware type error reporting
+
 ## 0.1.0.0 - YYYY-MM-DD

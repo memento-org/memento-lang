@@ -45,7 +45,15 @@ Memento Compiler (mmtc) is a compiler for the Memento programming language that 
    - `Higher`: HFunctor and related abstractions
    - Uses `IsVoidIn` typeclass for impossible cases
 
-3. **Backend Code Generation**
+3. **Type System** (`src/Language/Memento/TypeSolver/`)
+
+   - Constraint-based type inference and checking
+   - Parametric polymorphism with variance analysis
+   - Union/intersection types with subtyping
+   - Exhaustive pattern matching verification
+   - Type schemes for generalization and instantiation
+
+4. **Backend Code Generation**
    - JavaScript backend: `src/Language/Memento/Backend/JS/`
    - WebAssembly backend: `src/Language/Memento/Backend/WASM/`
    - Each backend has its own IR and Codegen modules
@@ -92,16 +100,57 @@ Memento Compiler (mmtc) is a compiler for the Memento programming language that 
 # Parse a Memento source file
 stack run -- parse example.mmt
 
+# Type check a Memento source file
+stack run -- check example.mmt
+
+# Compile to JavaScript
+stack run -- compile example.mmt
+
+# Compile and run
+stack run -- run example.mmt
+
 # Or if installed:
 memento-compiler parse example.mmt
+memento-compiler check example.mmt
+memento-compiler compile example.mmt
+memento-compiler run example.mmt
 ```
 
-### Testing Parser
+### Testing Parser and Type Checker
 
 ```bash
-# Test with the provided example
+# Test parsing with the provided example
 stack run -- parse example/basic/syntax.mmt
+
+# Test type checking
+stack run -- check example/basic/syntax.mmt
 ```
+
+### Type Checker Implementation Notes
+
+1. **Type Solver**: Located in `src/Language/Memento/TypeSolver.hs`
+
+   - Constraint-based algorithm with iterative solving
+   - Supports polymorphism through type schemes
+   - Handles union/intersection types with proper subtyping
+   - Branch splitting for ambiguous constraints
+   - Sound unification ensuring correctness
+
+2. **Type System Features**:
+
+   - **Parametric Polymorphism**: Generic functions with `<T>` parameters
+   - **Subtyping**: Structural typing with variance-aware decomposition
+   - **Union Types**: `A | B` for sum types
+   - **Intersection Types**: `A & B` for intersection types
+   - **Pattern Matching**: Exhaustiveness checking via constraint solving
+   - **Type Inference**: Automatic type deduction from constraints
+
+3. **Constraint Generation**: Located in `src/Language/Memento/TypeSolver/ConstraintGen.hs`
+
+   - Generates subtype constraints from AST
+   - Handles polymorphic instantiation and generalization
+   - Pattern matching constraint generation for exhaustiveness
+   - Position-aware error reporting
 
 ### Parser Implementation Notes
 
@@ -124,6 +173,8 @@ stack run -- parse example/basic/syntax.mmt
    - Implement HFunctor and IsVoidIn instances
    - Create parser in appropriate module under `src/Language/Memento/Parser/`
    - Add to `parseAST` in `src/Language/Memento/Parser.hs`
+   - Add constraint generation logic in `src/Language/Memento/TypeSolver/ConstraintGen.hs`
+   - Update type checking if the syntax affects typing rules
 
 ### Syntax Reference
 
