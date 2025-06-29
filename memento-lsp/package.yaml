@@ -1,0 +1,67 @@
+name: memento-lsp
+version: 0.1.0.0
+github: "githubuser/memento-lang"
+license: MIT
+author: "Yukikurage"
+maintainer: "example@example.com"
+copyright: "2025 Yukikurage"
+
+extra-source-files:
+  - README.md
+
+description: Language Server Protocol implementation for Memento programming language
+
+dependencies:
+  - base >= 4.7 && < 5
+  - memento-compiler
+  - lsp >= 2.7
+  - lsp-types >= 2.3
+  - text
+  - containers
+  - mtl
+  - async
+  - aeson
+  - lens
+  - filepath
+  - directory
+  - transformers
+  - co-log-core
+  - prettyprinter
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wmissing-export-lists
+  - -Wmissing-home-modules
+  - -Wpartial-fields
+  - -Wredundant-constraints
+
+library:
+  source-dirs: src
+
+executables:
+  memento-lsp-exe:
+    main: Main.hs
+    source-dirs: app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - memento-lsp
+
+tests:
+  memento-lsp-test:
+    main: Spec.hs
+    source-dirs: test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - memento-lsp
+      - hspec
+      - QuickCheck
