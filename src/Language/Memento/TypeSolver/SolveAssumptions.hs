@@ -22,7 +22,10 @@ import           Language.Memento.Data.Environment.Variance  (Variance (..))
 import           Language.Memento.Data.Functor.FixedPoint    (injectFix,
                                                               projectFix)
 import           Language.Memento.Data.Ty                    (Ty, TyF (..),
+                                                              TyVarF (..),
+                                                              TyVariable,
                                                               UnsolvedTy,
+                                                              typeVars,
                                                               unsolvedTyToTy)
 import           Language.Memento.TypeSolver.Data.Constraint (Assumption,
                                                               Constraint (..))
@@ -31,6 +34,8 @@ import           Language.Memento.TypeSolver.Data.Constraint (Assumption,
 calculateGenericBounds :: TyCons Variance -> Set Assumption -> Map Text (Ty, Ty)
 calculateGenericBounds _varMap assumptions =
   let
+    -- Apply propagation first to find all transitive relationships
+    propagatedAssumptions = calculatePropagationAssumptionsAll assumptions
     takeUpper :: Text -> Constraint -> Maybe Ty
     takeUpper name = \case
       IsSubtypeOf t1 t2 | isGenericNamed name t1 -> unsolvedTyToTy t2
@@ -41,10 +46,10 @@ calculateGenericBounds _varMap assumptions =
       IsSubtypeOf t1 t2 | isGenericNamed name t2 -> unsolvedTyToTy t1
       _ -> Nothing
 
-    takeUppers name = mapMaybe (takeUpper name) $ Set.toList assumptions
-    takeLowers name = mapMaybe (takeLower name) $ Set.toList assumptions
+    takeUppers name = mapMaybe (takeUpper name) $ Set.toList propagatedAssumptions
+    takeLowers name = mapMaybe (takeLower name) $ Set.toList propagatedAssumptions
 
-    generics = mapMaybe extractGenericName $ Set.toList assumptions
+    generics = mapMaybe extractGenericName $ Set.toList propagatedAssumptions
 
     extractGenericName = \case
       IsSubtypeOf t1 t2 -> case (extractGeneric t1, extractGeneric t2) of
@@ -91,7 +96,7 @@ decomposeAssumption varMap = \case
     | not (containsGeneric t1 || containsGeneric t2) -> (Set.empty, Set.empty)
     | otherwise -> case (projectFix t1, projectFix t2) of
         (Just t1F, Just t2F) -> decomposeByStructure t1F t2F t1 t2
-        _                    -> (Set.empty, Set.empty)
+        _                    -> (Set.singleton $ IsSubtypeOf t1 t2, Set.empty)
   where
     decomposeByStructure t1F t2F t1 t2 = case (t1F, t2F) of
       -- Union/Intersection decomposition
@@ -152,7 +157,7 @@ containsGeneric ty = case projectFix ty of
     TUnion ts           -> any containsGeneric ts
     TIntersection ts    -> any containsGeneric ts
     _                   -> False
-  Nothing -> False -- TyVar case - no generics in type variables
+  Nothing -> True
 
 -- | Check if a type is TNever
 isNever :: UnsolvedTy -> Bool
@@ -174,3 +179,87 @@ tNever = injectFix TNever
 -- | Create a TUnknown type
 tUnknown :: Ty
 tUnknown = injectFix TUnknown
+
+-- Propagation functionality
+
+-- | Unified variable type to handle both generics and type variables
+data Variable = GenericVar Text | TypeVar TyVariable
+  deriving (Eq, Ord, Show)
+
+-- | Extract all variables (both generic and type vars) from assumptions
+extractAllVars :: Set Assumption -> Set Variable
+extractAllVars assumptions = Set.unions $ Set.map extractVarsFromConstraint assumptions
+  where
+    extractVarsFromConstraint (IsSubtypeOf t1 t2) =
+      Set.union (extractVarsFromType t1) (extractVarsFromType t2)
+
+    extractVarsFromType :: UnsolvedTy -> Set Variable
+    extractVarsFromType ty =
+      let typeVarSet = Set.map TypeVar $ typeVars ty
+          genericSet = extractGenericsFromType ty
+      in Set.union typeVarSet genericSet
+
+    extractGenericsFromType :: UnsolvedTy -> Set Variable
+    extractGenericsFromType ty = case projectFix ty of
+      Just tyF -> case tyF of
+        TGeneric name       -> Set.singleton (GenericVar name)
+        TFunction args ret  -> Set.unions $ extractGenericsFromType ret : map extractGenericsFromType args
+        TApplication _ args -> Set.unions $ map extractGenericsFromType args
+        TUnion ts           -> Set.unions $ map extractGenericsFromType ts
+        TIntersection ts    -> Set.unions $ map extractGenericsFromType ts
+        _                   -> Set.empty
+      Nothing -> Set.empty  -- TyVar case
+
+-- | Check if a type is the given variable
+isVariable :: Variable -> UnsolvedTy -> Bool
+isVariable var ty = case var of
+  GenericVar name -> isGenericNamed name ty
+  TypeVar tyVar -> case projectFix ty :: Maybe (TyVarF UnsolvedTy) of
+    Just (TyVar v) -> v == tyVar
+    Nothing        -> False
+
+-- | Bounds for a variable (lower and upper bounds)
+data Bounds = Bounds [UnsolvedTy] [UnsolvedTy]
+  deriving (Show, Eq)
+
+-- | Calculate bounds for any variable (generic or type var)
+calculateBoundsForVar :: Variable -> Set Assumption -> Bounds
+calculateBoundsForVar var assumptions =
+  let lowerBounds = mapMaybe (getLowerBoundForVar var) $ Set.toList assumptions
+      upperBounds = mapMaybe (getUpperBoundForVar var) $ Set.toList assumptions
+   in Bounds lowerBounds upperBounds
+
+-- | Get lower bound for a variable from a constraint
+getLowerBoundForVar :: Variable -> Constraint -> Maybe UnsolvedTy
+getLowerBoundForVar var = \case
+  IsSubtypeOf t1 t2 | isVariable var t2 -> Just t1
+  _ -> Nothing
+
+-- | Get upper bound for a variable from a constraint
+getUpperBoundForVar :: Variable -> Constraint -> Maybe UnsolvedTy
+getUpperBoundForVar var = \case
+  IsSubtypeOf t1 t2 | isVariable var t1 -> Just t2
+  _ -> Nothing
+
+-- | Single propagation step for assumptions (similar to calculatePropagation)
+calculatePropagationAssumptions :: Set Assumption -> Maybe (Set Assumption)
+calculatePropagationAssumptions assumptions =
+  let vars = extractAllVars assumptions
+      boundsMap = Map.fromList [(var, calculateBoundsForVar var assumptions) | var <- Set.toList vars]
+      -- Generate new constraints by pairing lower and upper bounds
+      newConstraints = concat $ Map.elems $ Map.map (\(Bounds lowers uppers) ->
+        [IsSubtypeOf lower upper | lower <- lowers, upper <- uppers]) boundsMap
+      -- Filter out existing and trivial constraints
+      actuallyNewConstraints = filter (\c -> not (Set.member c assumptions) && not (isTrivial c)) newConstraints
+   in if null actuallyNewConstraints
+        then Nothing
+        else Just (Set.fromList actuallyNewConstraints)
+ where
+  isTrivial (IsSubtypeOf t1 t2) = t1 == t2
+
+-- | Recursive propagation (similar to calculatePropagationAll)
+calculatePropagationAssumptionsAll :: Set Assumption -> Set Assumption
+calculatePropagationAssumptionsAll assumptions =
+  case calculatePropagationAssumptions assumptions of
+    Nothing    -> assumptions
+    Just newAs -> calculatePropagationAssumptionsAll (Set.union assumptions newAs)

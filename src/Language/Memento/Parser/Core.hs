@@ -79,6 +79,7 @@ reservedWords =
   , "false"
   , -- primitive types
     "number"
+  , "int"
   , "bool"
   , "string"
   , -- definitions

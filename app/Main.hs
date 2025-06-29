@@ -3,30 +3,32 @@
 
 module Main (main) where
 
-import           Control.Monad                               (forM_)
-import qualified Data.Text                                   as T
-import qualified Data.Text.IO                                as TIO
-import           Language.Memento.Backend.JS.Codegen         (formatJSProgram)
-import           Language.Memento.Backend.JS.Compile         (compileToJS)
-import           Language.Memento.Data.AST.Tag               (KProgram)
-import           Language.Memento.Parser                     (parseAST)
-import           Language.Memento.TypeSolver                 (SolveError (..),
-                                                              solveTypedAST)
-import           Language.Memento.TypeSolver.ConstraintGen   (generateConstraints)
-import           Language.Memento.TypeSolver.Data.Constraint (formatConstraints)
-import           Language.Memento.TypeSolver.SolveVariances  (solveVariancesFromEnv)
-import           Language.Memento.Typing                     (typeProgramWithTyCons)
-import           System.Directory                            (createDirectoryIfMissing)
-import           System.Environment                          (getArgs)
-import           System.Exit                                 (exitFailure,
-                                                              exitSuccess)
-import           System.FilePath                             (replaceExtension,
-                                                              takeFileName,
-                                                              (</>))
-import           System.IO                                   (hPutStrLn, stderr)
-import           System.Process                              (callProcess)
-import           Text.Megaparsec                             (errorBundlePretty,
-                                                              parse)
+import           Control.Monad                                (forM_)
+import qualified Data.Text                                    as T
+import qualified Data.Text.IO                                 as TIO
+import           Language.Memento.Backend.JS.Codegen          (formatJSProgram)
+import           Language.Memento.Backend.JS.Compile          (compileToJS)
+import           Language.Memento.Data.AST.Tag                (KProgram)
+import           Language.Memento.Parser                      (parseAST)
+import           Language.Memento.TypeSolver                  (SolveError (..),
+                                                               solveTypedAST)
+import           Language.Memento.TypeSolver.ConstraintGen    (generateConstraints)
+import           Language.Memento.TypeSolver.Data.Constraint  (formatConstraints)
+import           Language.Memento.TypeSolver.SolveConstraints (SolveResult (..))
+import           Language.Memento.TypeSolver.SolveVariances   (solveVariancesFromEnv)
+import           Language.Memento.Typing                      (typeProgramWithTyCons)
+import           System.Directory                             (createDirectoryIfMissing)
+import           System.Environment                           (getArgs)
+import           System.Exit                                  (exitFailure,
+                                                               exitSuccess)
+import           System.FilePath                              (replaceExtension,
+                                                               takeFileName,
+                                                               (</>))
+import           System.IO                                    (hPutStrLn,
+                                                               stderr)
+import           System.Process                               (callProcess)
+import           Text.Megaparsec                              (errorBundlePretty,
+                                                               parse)
 
 -- | Main entry point for the Memento compiler
 main :: IO ()
@@ -110,13 +112,10 @@ checkCommand filePath = do
           hPutStrLn stderr $ show typingError
           exitFailure
         Right (unsolvedTypedAst, tyCons) -> do
-          putStrLn "Type checking successful!"
-          putStrLn ""
-          
           -- Solve variances
           let solvedVariances = solveVariancesFromEnv tyCons
           putStrLn "Solved variances for type constructors."
-          
+
           -- Show constraints
           let constraintAndAssumptions = generateConstraints unsolvedTypedAst
           putStrLn "Generated constraints:"
@@ -128,7 +127,7 @@ checkCommand filePath = do
             putStrLn "Constraints:"
             putStrLn $ T.unpack $ formatConstraints constraints
             putStrLn ""
-          
+
           -- Solve type constraints
           case solveTypedAST solvedVariances unsolvedTypedAst of
             Left (ContradictionError err) -> do
@@ -139,7 +138,7 @@ checkCommand filePath = do
               hPutStrLn stderr "Unsolved type variables:"
               hPutStrLn stderr $ show vars
               exitFailure
-            Right _ -> do
+            Right _typedAST -> do
               putStrLn $ replicate 60 '-'
               putStrLn "✓ Type constraint solving successful!"
               putStrLn "✓ The file was successfully type checked."
@@ -170,11 +169,9 @@ compileCommand filePath = do
           hPutStrLn stderr $ show typingError
           exitFailure
         Right (unsolvedTypedAst, tyCons) -> do
-          putStrLn "Type checking successful!"
-          
           -- Solve variances
           let solvedVariances = solveVariancesFromEnv tyCons
-          
+
           -- Solve type constraints
           case solveTypedAST solvedVariances unsolvedTypedAst of
             Left (ContradictionError err) -> do
@@ -187,7 +184,7 @@ compileCommand filePath = do
               exitFailure
             Right solvedTypedAst -> do
               putStrLn "Type constraint solving successful!"
-              
+
               -- Compile to JS IR
               let jsIR = compileToJS solvedTypedAst
               putStrLn "Compilation to JS IR successful!"
@@ -232,10 +229,10 @@ runCommand filePath = do
           exitFailure
         Right (unsolvedTypedAst, tyCons) -> do
           putStrLn "Type checking successful!"
-          
+
           -- Solve variances
           let solvedVariances = solveVariancesFromEnv tyCons
-          
+
           -- Solve type constraints
           case solveTypedAST solvedVariances unsolvedTypedAst of
             Left (ContradictionError err) -> do
@@ -248,7 +245,7 @@ runCommand filePath = do
               exitFailure
             Right solvedTypedAst -> do
               putStrLn "Type constraint solving successful!"
-              
+
               -- Compile to JS IR
               let jsIR = compileToJS solvedTypedAst
               putStrLn "Compilation to JS IR successful!"

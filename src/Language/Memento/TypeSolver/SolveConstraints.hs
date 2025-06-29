@@ -19,6 +19,7 @@ import           Data.Set                                     (Set)
 import qualified Data.Set                                     as Set
 import           Data.Text                                    (Text)
 import qualified Data.Text                                    as T
+import           Debug.Trace                                  (trace)
 import           Language.Memento.Data.Environment.Ty         (TyCons)
 import           Language.Memento.Data.Environment.Variance   (Variance (..))
 import           Language.Memento.Data.Functor.FixedPoint     (injectFix,
@@ -33,9 +34,11 @@ import           Language.Memento.Data.Ty                     (Ty, TyF (..),
                                                                typeVars,
                                                                unsolvedTyToTy)
 import           Language.Memento.TypeSolver.Data.Constraint  (Assumption,
-                                                               Constraint (..))
+                                                               Constraint (..),
+                                                               formatConstraints)
 import           Language.Memento.TypeSolver.Normalize        (normalize)
-import           Language.Memento.TypeSolver.SolveAssumptions (calculateGenericBounds)
+import           Language.Memento.TypeSolver.SolveAssumptions (calculateGenericBounds,
+                                                               decomposeAssumptionAll)
 import           Language.Memento.TypeSolver.Subtype          (isSubtype)
 
 -- Data types for constraint solving
@@ -54,20 +57,21 @@ type Substitution = Map TyVariable UnsolvedTy
 solve :: TyCons Variance -> Set Assumption -> Set Constraint -> SolveResult
 solve varMap assumptions cs =
   let normalized = Set.map normalizeConstraint cs
-      (substedAssumptions, substed, substSubst) = substInstancesAsPossible (assumptions, normalized)
-      genBndMap = convertGenericBounds $ calculateGenericBounds varMap substedAssumptions
-   in case decomposeConstraintsAll varMap genBndMap substed of
+      (substedAssumptions, substed, substSubst) = trace (T.unpack $ "\n⇓\nINITIAL ASSUMPTIONS\n" <> formatConstraints assumptions <> "\nINITIAL CONSTRAINTS\n" <> formatConstraints cs) $ substInstancesAsPossible (assumptions, normalized)
+      decomposedAssumptions = decomposeAssumptionAll varMap substedAssumptions
+      genBndMap = convertGenericBounds $ calculateGenericBounds varMap decomposedAssumptions
+   in trace (T.unpack $ "\nASSUMPTIONS\n" <> formatConstraints decomposedAssumptions <> "\nCONSTRAINTS\n" <> formatConstraints substed) $ case decomposeConstraintsAll varMap genBndMap substed of
         Left err -> Contradiction err
-        Right remaining ->
-          case branchConstraints varMap substedAssumptions remaining of
+        Right remaining -> trace (T.unpack $  "\nDECOMPOSED CONSTRAINTS\n" <> formatConstraints remaining) $
+          case branchConstraints varMap decomposedAssumptions remaining of
             Nothing ->
               -- Only BOUND constraints remain
-              let (_, propagatedConstraints, propagationSubst) = calculateFullPropagationAllWithSubst substedAssumptions remaining
+              let propagatedConstraints = calculatePropagationAll remaining
               in case checkContradictions varMap genBndMap propagatedConstraints of
                 Left err -> Contradiction err
                 Right () ->
                   let finalSubstitutions = collectFinalSubstitutions propagatedConstraints
-                      combinedSubstitutions = Map.unions [substSubst, propagationSubst, finalSubstitutions]
+                      combinedSubstitutions = Map.unions [substSubst, finalSubstitutions]
                   in Success combinedSubstitutions
             Just branches ->
               let branchResults = map (uncurry (solve varMap)) branches
@@ -97,12 +101,12 @@ decomposeConstraints varMap bounds cs =
 decomposeConstraint :: TyCons Variance -> Map Text (UnsolvedTy, UnsolvedTy) -> Constraint -> Either String (Set Constraint, Set Constraint)
 decomposeConstraint varMap bounds = \case
   IsSubtypeOf t1 t2 | t1 == t2 -> Right (Set.empty, Set.empty) -- Same type, no contradiction
-  IsSubtypeOf t1 _ | isNever t1 -> Right (Set.empty, Set.empty) -- Never is a subtype of anything
-  IsSubtypeOf _ t2 | isUnknown t2 -> Right (Set.empty, Set.empty) -- Unknown is a supertype of anything
+  IsSubtypeOf t1 _  | isNever t1 -> Right (Set.empty, Set.empty) -- Never is a subtype of anything
+  IsSubtypeOf _ t2  | isUnknown t2 -> Right (Set.empty, Set.empty) -- Unknown is a supertype of anything
   IsSubtypeOf t1 t2 | isGeneric t1 -> Right (Set.singleton (IsSubtypeOf t1 t2), Set.empty)
   IsSubtypeOf t1 t2 | isGeneric t2 -> Right (Set.singleton (IsSubtypeOf t1 t2), Set.empty)
   IsSubtypeOf t1 t2
-    | containsNoVars t1 && containsNoVars t2 ->
+    | containsNoVars t1 && containsNoVars t2 && not (containsGeneric t1) && not (containsGeneric t2) ->
         if checkSubtype varMap bounds t1 t2
           then Right (Set.empty, Set.empty)
           else Left $ "Contradiction found (while decomposing): (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ ")"
@@ -137,7 +141,7 @@ decomposeConstraint varMap bounds = \case
                     ]
                 )
         | otherwise -> Left $ "Type constructor mismatch or arity mismatch: " ++ T.unpack name1 ++ " vs " ++ T.unpack name2
-      _ -> Left $ "Contradiction found (error state): (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ "), while decomposing constraints"
+      _ -> Left $ "Contradiction found (structural): (" ++ T.unpack (formatUnsolvedTy t1) ++ ") is not a subtype of (" ++ T.unpack (formatUnsolvedTy t2) ++ "), while decomposing constraints"
 
 -- | Calculate bounds for a type variable
 calculateBounds :: TyVariable -> Set Constraint -> Bounds
@@ -161,8 +165,8 @@ calculateInstanceFromBounds :: Bounds -> Maybe UnsolvedTy
 calculateInstanceFromBounds (Bounds lowers uppers)
   | any isNever uppers = Just tNever
   | any isUnknown lowers = Just tUnknown
-  | (g : _) <- filter isGeneric lowers = Just g -- Prefer generic types
-  | (g : _) <- filter isGeneric uppers = Just g -- Prefer generic types
+  -- | (g : _) <- filter isGeneric lowers = Just g -- Prefer generic types
+  -- | (g : _) <- filter isGeneric uppers = Just g -- Prefer generic types
   | not (Set.null intersections) = Just (Set.findMin intersections)
   | otherwise = Nothing
  where
@@ -292,8 +296,7 @@ branchConstraints varMap as cs = case partitionFirst (branchConstraint varMap) (
     Just $
       map
         ( \(subst, cs') ->
-            ( Set.map (applySubstConstraint subst) $
-                Set.union (Set.fromList remaining) as
+            ( Set.map (applySubstConstraint subst) as
             , Set.map (applySubstConstraint subst) $
                 Set.union (Set.fromList remaining) cs'
             )
@@ -314,7 +317,7 @@ calculateFullPropagation :: Set Assumption -> Set Constraint -> Maybe (Set Const
 calculateFullPropagation as cns =
   let vars = Set.unions (Set.map constraintVars cns)
       nestedVars = Set.unions (Set.map getNestedVars cns)
-      nestedVarsAs = Set.unions (Set.map getNestedVars as)
+      nestedVarsAs = Set.unions (Set.map constraintVars as)
       nonNestedVars = (vars `Set.difference` nestedVars) `Set.difference` nestedVarsAs
    in if Set.null nonNestedVars
         then Nothing
@@ -438,6 +441,18 @@ containsNoVars :: UnsolvedTy -> Bool
 containsNoVars ty = case unsolvedTyToTy ty of
   Just _  -> True
   Nothing -> False
+
+-- | Check if a type contains any generics
+containsGeneric :: UnsolvedTy -> Bool
+containsGeneric ty = case projectFix ty of
+  Just tyF -> case tyF of
+    TGeneric _          -> True
+    TFunction args ret  -> any containsGeneric args || containsGeneric ret
+    TApplication _ args -> any containsGeneric args
+    TUnion ts           -> any containsGeneric ts
+    TIntersection ts    -> any containsGeneric ts
+    _                   -> False
+  Nothing -> True
 
 checkSubtype :: TyCons Variance -> Map Text (UnsolvedTy, UnsolvedTy) -> UnsolvedTy -> UnsolvedTy -> Bool
 checkSubtype varMap genMap t1 t2 = case (unsolvedTyToTy t1, unsolvedTyToTy t2) of

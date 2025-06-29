@@ -8,11 +8,9 @@ import           Control.Monad                              (zipWithM)
 import           Data.Map                                   (Map)
 import qualified Data.Map                                   as Map
 import           Data.Text                                  (Text)
-import           Language.Memento.Data.AST.Literal          (Literal (..))
 import           Language.Memento.Data.Environment.Ty       (TyCons)
 import           Language.Memento.Data.Environment.Variance (Variance (..))
-import           Language.Memento.Data.Functor.FixedPoint   (Fix (..),
-                                                             injectFix,
+import           Language.Memento.Data.Functor.FixedPoint   (injectFix,
                                                              projectFix)
 import           Language.Memento.Data.Ty                   (Literal (..), Ty,
                                                              TyF (..))

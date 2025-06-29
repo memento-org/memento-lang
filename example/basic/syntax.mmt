@@ -43,14 +43,13 @@ fn describeNumber(n: number) -> string {
 
 // Switch with Constructors
 val describeNumber2 : fn (opt : Option<number>) -> number
-  = fn (opt: Option<number>) -> switch (opt) {
+  = fn (opt) -> switch (opt) {
     case (Some(n)) -> n,
     case (None()) -> 0
   };
 
-/*
 // Value with type parameters
-val id<T> : fn (x : T) -> T = fn (x: T) -> {
+val id<U> : fn (x : U) -> U = fn (x) -> {
   x
 };
 
@@ -63,6 +62,5 @@ fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
 };
 
 fn main() -> number {
-  42
+  id(42)
 };
-*/
