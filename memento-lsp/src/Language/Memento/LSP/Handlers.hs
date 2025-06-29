@@ -1,44 +1,72 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DisambiguateRecordFields  #-}
-{-# LANGUAGE GADTs                     #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TypeApplications          #-}
+{-# LANGUAGE DataKinds                #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE GADTs                    #-}
+{-# LANGUAGE OverloadedStrings        #-}
+{-# LANGUAGE ScopedTypeVariables      #-}
+{-# LANGUAGE TypeApplications         #-}
 
 module Language.Memento.LSP.Handlers
   ( handlers
   ) where
 
-import           Control.Monad.IO.Class        (liftIO)
-import           Data.Text                     (Text)
-import qualified Data.Text                     as T
+import qualified Colog.Core                       as C
+import           Control.Monad.IO.Class           (liftIO)
+import qualified Data.Map                         as Map
+import qualified Data.SortedList                  as SortedList
+import           Data.Text                        (Text)
+import qualified Data.Text                        as T
 import           Language.LSP.Protocol.Message
 import           Language.LSP.Protocol.Types
-import           Language.LSP.Server
-import           Language.LSP.Diagnostics
-import qualified Data.Map as Map
-import qualified Data.SortedList as SortedList
+import           Language.LSP.Server              (Handlers, LspM,
+                                                   notificationHandler,
+                                                   publishDiagnostics,
+                                                   requestHandler)
 import           Language.Memento.LSP.Diagnostics (computeDiagnostics)
+import           System.Exit                      (exitSuccess)
 
 -- | All message handlers for the LSP server
-handlers :: Handlers (LspM ())
-handlers = mconcat
-  [ notificationHandler SMethod_Initialized $ \_not -> do
-      liftIO $ putStrLn "[Debug] Memento LSP initialized successfully"
-  
+handlers :: (C.Severity -> Text -> LspM () ()) -> Handlers (LspM ())
+handlers logMessage = mconcat
+  [ requestHandler SMethod_Shutdown $ \_req respond -> do
+      respond (Right Null)
+      pure ()
+  , notificationHandler SMethod_Exit $ \_notif -> liftIO exitSuccess
+  , notificationHandler SMethod_Initialized $ \_not -> do
+      logMessage C.Debug "Memento LSP initialized successfully"
+
   , notificationHandler SMethod_TextDocumentDidOpen $ \msg -> do
-      liftIO $ putStrLn "[Debug] Document opened"
+      logMessage C.Debug "Document opened"
       let TNotificationMessage _ _ (DidOpenTextDocumentParams doc) = msg
           TextDocumentItem uri _ _ content = doc
-      liftIO $ putStrLn $ "[Debug] Processing file: " ++ show uri
-      
+      logMessage C.Debug ("Processing file: " <> T.pack (show uri))
+
       -- Compute real diagnostics using Memento compiler
-      liftIO $ putStrLn "[Debug] Running Memento compiler diagnostics..."
+      logMessage C.Debug "Running Memento compiler diagnostics..."
       diagnostics <- liftIO $ computeDiagnostics uri content
-      liftIO $ putStrLn $ "[Debug] Found " ++ show (length diagnostics) ++ " diagnostics"
-      
+      logMessage C.Debug ("Found " <> T.pack (show (length diagnostics)) <> " diagnostics")
+
       -- Publish the diagnostics
       let diagnosticsMap = Map.fromList [(Nothing, SortedList.toSortedList diagnostics)]
       publishDiagnostics 100 (toNormalizedUri uri) Nothing diagnosticsMap
-      liftIO $ putStrLn "[Debug] Published real compiler diagnostics"
+      logMessage C.Debug "Published real compiler diagnostics"
+
+  , notificationHandler SMethod_TextDocumentDidSave $ \msg -> do
+      logMessage C.Debug "Document saved"
+      let TNotificationMessage _ _ (DidSaveTextDocumentParams doc _maybeContent) = msg
+          TextDocumentIdentifier uri = doc
+      -- Read fresh content from disk for real-time diagnostics
+      let filePath = T.unpack $ getUri uri
+      fileContent <- liftIO $ readFile filePath
+      let content = T.pack fileContent
+      logMessage C.Debug ("Processing saved file: " <> T.pack (show uri))
+
+      -- Compute real diagnostics using Memento compiler
+      logMessage C.Debug "Running Memento compiler diagnostics..."
+      diagnostics <- liftIO $ computeDiagnostics uri content
+      logMessage C.Debug ("Found " <> T.pack (show (length diagnostics)) <> " diagnostics")
+
+      -- Publish the diagnostics
+      let diagnosticsMap = Map.fromList [(Nothing, SortedList.toSortedList diagnostics)]
+      publishDiagnostics 100 (toNormalizedUri uri) Nothing diagnosticsMap
+      logMessage C.Debug "Published real compiler diagnostics"
   ]

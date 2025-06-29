@@ -1,35 +1,39 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DisambiguateRecordFields  #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TypeApplications          #-}
+{-# LANGUAGE DataKinds                #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE OverloadedStrings        #-}
+{-# LANGUAGE ScopedTypeVariables      #-}
+
 
 module Language.Memento.LSP.Server
   ( runMementoServer
   ) where
 
-import           Colog.Core                                (LogAction (..),
-                                                            WithSeverity (..),
-                                                            (<&))
-import           Control.Monad.IO.Class                    (MonadIO (..))
-import           Data.Text                                 (Text)
-import qualified Data.Text                                 as T
-import           Language.LSP.Protocol.Message
+import qualified Colog.Core                    as C
+import           Control.Monad.IO.Class        (MonadIO (..))
+import           Data.Text                     (Text)
+import           Language.LSP.Logging
 import           Language.LSP.Protocol.Types
 import           Language.LSP.Server
-import           Language.Memento.LSP.Handlers             (handlers)
-import           Prettyprinter                             (defaultLayoutOptions,
-                                                            layoutPretty,
-                                                            pretty)
-import qualified Prettyprinter.Render.Text                 as PP
-import           System.IO                                 (stderr)
+import           Language.Memento.LSP.Handlers (handlers)
+import           System.IO                     (hPutStrLn, stderr)
+
+----------------------------------------------------------------------
+-- 2. VS Code 側へ流すロガー（初期化後）
+----------------------------------------------------------------------
+clientLogger :: C.LogAction (LspM ()) (C.WithSeverity Text)
+clientLogger = defaultClientLogger      -- ここを書き換えればカスタム可
+
+logMessage :: C.Severity -> Text -> LspM () ()
+logMessage severity msg = C.unLogAction clientLogger
+  $ C.WithSeverity msg severity
+
 
 -- | Run the Memento Language Server
 runMementoServer :: IO ()
 runMementoServer = do
-  putStrLn "[Info] Starting server"
+  hPutStrLn stderr "[Info] Starting Memento LSP server"
   result <- Language.LSP.Server.runServer serverDefinition
-  putStrLn $ "[Info] Server stopped with result: " ++ show result
+  hPutStrLn stderr $ "[Info] Server stopped with result: " ++ show result
   pure ()
 
 -- | Server definition with configuration
@@ -40,11 +44,11 @@ serverDefinition = ServerDefinition
   , defaultConfig = ()
   , configSection = "memento"
   , doInitialize = \env _req -> do
-      putStrLn "[Debug] Initializing LSP server"
+      hPutStrLn stderr "[Debug] Initializing LSP server"
       pure $ Right env
-  , staticHandlers = \_caps -> handlers
+  , staticHandlers = \_caps -> handlers logMessage
   , interpretHandler = \env -> Iso (runLspT env) liftIO
-  , options = defaultOptions
+  , options = mementoOptions
       { optTextDocumentSync = Just $ TextDocumentSyncOptions
           { _openClose = Just True
           , _change = Just TextDocumentSyncKind_Full
@@ -59,7 +63,7 @@ serverDefinition = ServerDefinition
 mementoOptions :: Options
 mementoOptions = Language.LSP.Server.defaultOptions
   { optServerInfo = Just $ ServerInfo
-      { _name = ("memento-lsp" :: Text)
-      , _version = (Just "0.1.0.0" :: Maybe Text)
+      { _name = "memento-lsp" :: Text
+      , _version = Just "0.1.0.0" :: Maybe Text
       }
   }
