@@ -4,7 +4,6 @@
 module Language.Memento.TypeSolver.SolveConstraints
   ( solve
   , SolveResult(..)
-  , Bounds(..)
   , Substitution
   ) where
 
@@ -28,25 +27,41 @@ import           Language.Memento.Data.Ty                     (Ty, TyF (..),
                                                                TyVariable,
                                                                UnsolvedTy,
                                                                formatUnsolvedTy,
-                                                               substituteTyVar,
                                                                tyToUnsolvedTy,
-                                                               typeVars,
                                                                unsolvedTyToTy)
+import           Language.Memento.TypeSolver.Constraint.Utils (applySubstConstraint,
+                                                               constraintVars,
+                                                               containsNoVars,
+                                                               filterTrivialConstraints,
+                                                               normalizeConstraint)
 import           Language.Memento.TypeSolver.Data.Constraint  (Assumption,
                                                                Constraint (..))
-import           Language.Memento.TypeSolver.Normalize        (normalize)
 import           Language.Memento.TypeSolver.SolveAssumptions (calculateGenericBounds,
                                                                decomposeAssumptionAll)
 import           Language.Memento.TypeSolver.Subtype          (isSubtype)
+import           Language.Memento.TypeSolver.Utils           (Bounds (..),
+                                                               boundsToConstraints,
+                                                               containsGeneric,
+                                                               containsTyVar,
+                                                               getNestedVars,
+                                                               isApplicationType,
+                                                               isFunctionType,
+                                                               isGeneric,
+                                                               isNever,
+                                                               isTrivialConstraint,
+                                                               isTyVar,
+                                                               isTyVarType,
+                                                               isUnknown,
+                                                               mkConstraintWithVariance,
+                                                               partitionFirst,
+                                                               tNeverUnsolved,
+                                                               tUnknownUnsolved)
 
 -- Data types for constraint solving
 
 data SolveResult
   = Success Substitution
   | Contradiction String
-  deriving (Show, Eq)
-
-data Bounds = Bounds [UnsolvedTy] [UnsolvedTy]
   deriving (Show, Eq)
 
 type Substitution = Map TyVariable UnsolvedTy
@@ -167,8 +182,8 @@ getUpperBound var = \case
 -- | Try to instantiate type variable from its bounds
 calculateInstanceFromBounds :: Bounds -> Maybe UnsolvedTy
 calculateInstanceFromBounds (Bounds lowers uppers)
-  | any isNever uppers = Just tNever
-  | any isUnknown lowers = Just tUnknown
+  | any isNever uppers = Just tNeverUnsolved
+  | any isUnknown lowers = Just tUnknownUnsolved
   -- | (g : _) <- filter isGeneric lowers = Just g -- Prefer generic types
   -- | (g : _) <- filter isGeneric uppers = Just g -- Prefer generic types
   | not (Set.null intersections) = Just (Set.findMin intersections)
@@ -223,7 +238,7 @@ branchTyVarFunction var t2 = case projectFix t2 of
         retVar = var <> "_ret"
         argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
         retVarType = injectFix (TyVar retVar)
-        substIfNever = Map.singleton var tNever
+        substIfNever = Map.singleton var tNeverUnsolved
         substIfFunc = Map.singleton var (injectFix $ TFunction argVarTypes retVarType)
      in Just
           [ ( substIfFunc
@@ -241,7 +256,7 @@ branchFunctionTyVar t1 var = case projectFix t1 of
         retVar = var <> "_ret"
         argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
         retVarType = injectFix (TyVar retVar)
-        substIfUnknown = Map.singleton var tUnknown
+        substIfUnknown = Map.singleton var tUnknownUnsolved
         substIfFunc = Map.singleton var (injectFix $ TFunction argVarTypes retVarType)
      in Just
           [ ( substIfFunc
@@ -258,7 +273,7 @@ branchTyVarApplication varMap var t2 = case projectFix t2 of
     Just (variances, _) ->
       let argVars = [var <> "_arg_" <> T.pack (show n) | n <- [1 .. length args]]
           argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
-          substIfNever = Map.singleton var tNever
+          substIfNever = Map.singleton var tNeverUnsolved
           substIfApp = Map.singleton var (injectFix $ TApplication name argVarTypes)
        in Just
             [ ( substIfApp
@@ -275,7 +290,7 @@ branchApplicationTyVar varMap t1 var = case projectFix t1 of
     Just (variances, _) ->
       let argVars = [var <> "_arg_" <> T.pack (show n) | n <- [1 .. length args]]
           argVarTypes = [injectFix (TyVar argVar) | argVar <- argVars]
-          substIfUnknown = Map.singleton var tUnknown
+          substIfUnknown = Map.singleton var tUnknownUnsolved
           substIfApp = Map.singleton var (injectFix $ TApplication name argVarTypes)
        in Just
             [ ( substIfApp
@@ -286,12 +301,6 @@ branchApplicationTyVar varMap t1 var = case projectFix t1 of
     Nothing -> Nothing
   _ -> Nothing
 
-mkConstraintWithVariance :: UnsolvedTy -> UnsolvedTy -> Variance -> [Constraint]
-mkConstraintWithVariance left right = \case
-  Invariant -> [IsSubtypeOf left right, IsSubtypeOf right left]
-  Covariant -> [IsSubtypeOf left right]
-  Contravariant -> [IsSubtypeOf right left]
-  Bivariant -> []
 
 branchConstraints :: TyCons Variance -> Set Assumption -> Set Constraint -> Maybe [(Set Assumption, Set Constraint)]
 branchConstraints varMap as cs = case partitionFirst (branchConstraint varMap) (Set.toList cs) of
@@ -307,14 +316,6 @@ branchConstraints varMap as cs = case partitionFirst (branchConstraint varMap) (
         )
         branches
 
-partitionFirst :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
-partitionFirst f xs = go f xs []
- where
-  go _ [] _ = Nothing
-  go func (x : rest) acc =
-    case func x of
-      Just b  -> Just (b, acc ++ rest)
-      Nothing -> go func rest (x : acc)
 
 -- | Calculate full propagation with substitution tracking
 calculateFullPropagation :: Set Assumption -> Set Constraint -> Maybe (Set Constraint, Substitution)
@@ -365,13 +366,11 @@ calculatePropagation :: Set Constraint -> Maybe (Set Constraint)
 calculatePropagation cs =
   let vars = Set.unions (Set.map constraintVars cs)
       boundsMap = Map.fromList [(var, calculateBounds var cs) | var <- Set.toList vars]
-      newConstraints = concat $ Map.elems $ Map.map (\(Bounds lowers uppers) -> [IsSubtypeOf lower upper | lower <- lowers, upper <- uppers]) boundsMap
-      actuallyNewConstraints = filter (\c -> not (Set.member c cs) && not (isTrivial c)) newConstraints
+      newConstraints = concat $ Map.elems $ Map.map boundsToConstraints boundsMap
+      actuallyNewConstraints = filter (\c -> not (Set.member c cs) && not (isTrivialConstraint c)) newConstraints
    in if null actuallyNewConstraints
         then Nothing
         else Just (Set.fromList actuallyNewConstraints)
- where
-  isTrivial (IsSubtypeOf t1 t2) = t1 == t2
 
 -- | Recursive propagation
 calculatePropagationAll :: Set Constraint -> Set Constraint
@@ -418,45 +417,6 @@ collectFinalSubstitutions cs =
 convertGenericBounds :: Map Text (Ty, Ty) -> Map Text (UnsolvedTy, UnsolvedTy)
 convertGenericBounds = Map.map (\(lower, upper) -> (tyToUnsolvedTy lower, tyToUnsolvedTy upper))
 
-normalizeConstraint :: Constraint -> Constraint
-normalizeConstraint (IsSubtypeOf t1 t2) = IsSubtypeOf (normalize mempty t1) (normalize mempty t2)
-
-filterTrivialConstraints :: Set Constraint -> Set Constraint
-filterTrivialConstraints = Set.filter (not . isTrivial)
- where
-  isTrivial (IsSubtypeOf t1 t2) = t1 == t2
-
-constraintVars :: Constraint -> Set TyVariable
-constraintVars (IsSubtypeOf t1 t2) = Set.union (typeVars t1) (typeVars t2)
-
-applySubstConstraint :: Substitution -> Constraint -> Constraint
-applySubstConstraint subst (IsSubtypeOf t1 t2) =
-  IsSubtypeOf (applySubstType subst t1) (applySubstType subst t2)
-
--- | Apply substitution safely, avoiding infinite loops by applying in order
-applySubstType :: Substitution -> UnsolvedTy -> UnsolvedTy
-applySubstType subst ty =
-  let applySubst = \v -> Map.findWithDefault (injectFix (TyVar v)) v subst
-  in substituteTyVar applySubst ty
-
--- Type checking helpers
-
-containsNoVars :: UnsolvedTy -> Bool
-containsNoVars ty = case unsolvedTyToTy ty of
-  Just _  -> True
-  Nothing -> False
-
--- | Check if a type contains any generics
-containsGeneric :: UnsolvedTy -> Bool
-containsGeneric ty = case projectFix ty of
-  Just tyF -> case tyF of
-    TGeneric _          -> True
-    TFunction args ret  -> any containsGeneric args || containsGeneric ret
-    TApplication _ args -> any containsGeneric args
-    TUnion ts           -> any containsGeneric ts
-    TIntersection ts    -> any containsGeneric ts
-    _                   -> False
-  Nothing -> True
 
 checkSubtype :: TyCons Variance -> Map Text (UnsolvedTy, UnsolvedTy) -> UnsolvedTy -> UnsolvedTy -> Bool
 checkSubtype varMap genMap t1 t2 = case (unsolvedTyToTy t1, unsolvedTyToTy t2) of
@@ -470,54 +430,4 @@ checkSubtype varMap genMap t1 t2 = case (unsolvedTyToTy t1, unsolvedTyToTy t2) o
          Left _       -> False
   _ -> False
 
-isNever :: UnsolvedTy -> Bool
-isNever ty = case projectFix ty of
-  Just TNever -> True
-  _           -> False
 
-isUnknown :: UnsolvedTy -> Bool
-isUnknown ty = case projectFix ty of
-  Just TUnknown -> True
-  _             -> False
-
-isGeneric :: UnsolvedTy -> Bool
-isGeneric ty = case projectFix ty of
-  Just (TGeneric _) -> True
-  _                 -> False
-
-isFunctionType :: UnsolvedTy -> Bool
-isFunctionType ty = case projectFix ty of
-  Just (TFunction _ _) -> True
-  _                    -> False
-
-isApplicationType :: UnsolvedTy -> Bool
-isApplicationType ty = case projectFix ty of
-  Just (TApplication _ _) -> True
-  _                       -> False
-
-isTyVarType :: UnsolvedTy -> Maybe TyVariable
-isTyVarType ty = case projectFix ty of
-  Just (TyVar var) -> Just var
-  Nothing          -> Nothing
-
-isTyVar :: TyVariable -> UnsolvedTy -> Bool
-isTyVar var ty = case isTyVarType ty of
-  Just v  -> v == var
-  Nothing -> False
-
-containsTyVar :: TyVariable -> UnsolvedTy -> Bool
-containsTyVar var ty = Set.member var (typeVars ty)
-
-getNestedVars :: Constraint -> Set TyVariable
-getNestedVars (IsSubtypeOf t1 t2) = case (isTyVarType t1, isTyVarType t2) of
-  (Just _, Just _) -> Set.empty -- Both are type variables, no nesting
-  (Just _, _)      -> typeVars t2 -- t2 contains nested variables
-  (_, Just _)      -> typeVars t1 -- t1 contains nested variables
-  _                -> Set.union (typeVars t1) (typeVars t2) -- Both contain nested variables
-
--- Create basic types
-tNever :: UnsolvedTy
-tNever = injectFix TNever
-
-tUnknown :: UnsolvedTy
-tUnknown = injectFix TUnknown

@@ -29,6 +29,14 @@ import           Language.Memento.Data.Ty                    (Ty, TyF (..),
                                                               unsolvedTyToTy)
 import           Language.Memento.TypeSolver.Data.Constraint (Assumption,
                                                               Constraint (..))
+import           Language.Memento.TypeSolver.Utils          (Bounds (..),
+                                                              boundsToConstraints,
+                                                              containsGeneric,
+                                                              isNever,
+                                                              isTrivialConstraint,
+                                                              isUnknown,
+                                                              tNever,
+                                                              tUnknown)
 
 -- | Calculate generic bounds from a set of assumptions
 calculateGenericBounds :: TyCons Variance -> Set Assumption -> Map Text (Ty, Ty)
@@ -147,38 +155,8 @@ extractGeneric ty = case projectFix ty of
   Just (TGeneric name) -> Just name
   _                    -> Nothing
 
--- | Check if a type contains any generics
-containsGeneric :: UnsolvedTy -> Bool
-containsGeneric ty = case projectFix ty of
-  Just tyF -> case tyF of
-    TGeneric _          -> True
-    TFunction args ret  -> any containsGeneric args || containsGeneric ret
-    TApplication _ args -> any containsGeneric args
-    TUnion ts           -> any containsGeneric ts
-    TIntersection ts    -> any containsGeneric ts
-    _                   -> False
-  Nothing -> True
-
--- | Check if a type is TNever
-isNever :: UnsolvedTy -> Bool
-isNever ty = case projectFix ty of
-  Just TNever -> True
-  _           -> False
-
--- | Check if a type is TUnknown
-isUnknown :: UnsolvedTy -> Bool
-isUnknown ty = case projectFix ty of
-  Just TUnknown -> True
-  _             -> False
 
 
--- | Create a TNever type
-tNever :: Ty
-tNever = injectFix TNever
-
--- | Create a TUnknown type
-tUnknown :: Ty
-tUnknown = injectFix TUnknown
 
 -- Propagation functionality
 
@@ -218,9 +196,6 @@ isVariable var ty = case var of
     Just (TyVar v) -> v == tyVar
     Nothing        -> False
 
--- | Bounds for a variable (lower and upper bounds)
-data Bounds = Bounds [UnsolvedTy] [UnsolvedTy]
-  deriving (Show, Eq)
 
 -- | Calculate bounds for any variable (generic or type var)
 calculateBoundsForVar :: Variable -> Set Assumption -> Bounds
@@ -247,15 +222,12 @@ calculatePropagationAssumptions assumptions =
   let vars = extractAllVars assumptions
       boundsMap = Map.fromList [(var, calculateBoundsForVar var assumptions) | var <- Set.toList vars]
       -- Generate new constraints by pairing lower and upper bounds
-      newConstraints = concat $ Map.elems $ Map.map (\(Bounds lowers uppers) ->
-        [IsSubtypeOf lower upper | lower <- lowers, upper <- uppers]) boundsMap
+      newConstraints = concat $ Map.elems $ Map.map boundsToConstraints boundsMap
       -- Filter out existing and trivial constraints
-      actuallyNewConstraints = filter (\c -> not (Set.member c assumptions) && not (isTrivial c)) newConstraints
+      actuallyNewConstraints = filter (\c -> not (Set.member c assumptions) && not (isTrivialConstraint c)) newConstraints
    in if null actuallyNewConstraints
         then Nothing
         else Just (Set.fromList actuallyNewConstraints)
- where
-  isTrivial (IsSubtypeOf t1 t2) = t1 == t2
 
 -- | Recursive propagation (similar to calculatePropagationAll)
 calculatePropagationAssumptionsAll :: Set Assumption -> Set Assumption

@@ -69,6 +69,7 @@ library
     Language.Memento.Parser.Program
     Language.Memento.Parser.Variable
     Language.Memento.TypeSolver
+    Language.Memento.TypeSolver.Constraint.Utils
     Language.Memento.TypeSolver.ConstraintGen
     Language.Memento.TypeSolver.Data.Constraint
     Language.Memento.TypeSolver.Normalize
@@ -76,6 +77,7 @@ library
     Language.Memento.TypeSolver.SolveConstraints
     Language.Memento.TypeSolver.SolveVariances
     Language.Memento.TypeSolver.Subtype
+    Language.Memento.TypeSolver.Utils
     Language.Memento.Typing
     Language.Memento.Typing.Collection
     Language.Memento.Typing.Core
