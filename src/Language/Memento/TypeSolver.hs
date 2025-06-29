@@ -23,7 +23,7 @@ import           Language.Memento.Data.Ty                     (Ty, TyF (..),
 import           Language.Memento.Data.TypedAST               (TypedAST,
                                                                transformTypedAST)
 import           Language.Memento.TypeSolver.ConstraintGen    (generateConstraints)
-import           Language.Memento.TypeSolver.Data.Constraint (Assumption,
+import           Language.Memento.TypeSolver.Data.Constraint  (Assumption,
                                                                Constraint)
 import           Language.Memento.TypeSolver.SolveConstraints (SolveResult (..),
                                                                Substitution,
@@ -37,7 +37,7 @@ data SolveError
 
 -- | Solve a single (assumptions, constraints) pair
 solvePair :: TyCons Variance -> (Set.Set Assumption, Set.Set Constraint) -> Either SolveError Substitution
-solvePair varMap (assumptions, constraints) = 
+solvePair varMap (assumptions, constraints) =
   case solve varMap assumptions constraints of
     Success substs    -> Right substs
     Contradiction err -> Left (ContradictionError err)

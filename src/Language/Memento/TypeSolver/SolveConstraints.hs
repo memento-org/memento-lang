@@ -19,7 +19,6 @@ import           Data.Set                                     (Set)
 import qualified Data.Set                                     as Set
 import           Data.Text                                    (Text)
 import qualified Data.Text                                    as T
-import           Debug.Trace                                  (trace)
 import           Language.Memento.Data.Environment.Ty         (TyCons)
 import           Language.Memento.Data.Environment.Variance   (Variance (..))
 import           Language.Memento.Data.Functor.FixedPoint     (injectFix,
@@ -34,8 +33,7 @@ import           Language.Memento.Data.Ty                     (Ty, TyF (..),
                                                                typeVars,
                                                                unsolvedTyToTy)
 import           Language.Memento.TypeSolver.Data.Constraint  (Assumption,
-                                                               Constraint (..),
-                                                               formatConstraints)
+                                                               Constraint (..))
 import           Language.Memento.TypeSolver.Normalize        (normalize)
 import           Language.Memento.TypeSolver.SolveAssumptions (calculateGenericBounds,
                                                                decomposeAssumptionAll)
@@ -57,21 +55,27 @@ type Substitution = Map TyVariable UnsolvedTy
 solve :: TyCons Variance -> Set Assumption -> Set Constraint -> SolveResult
 solve varMap assumptions cs =
   let normalized = Set.map normalizeConstraint cs
-      (substedAssumptions, substed, substSubst) = trace (T.unpack $ "\n⇓\nINITIAL ASSUMPTIONS\n" <> formatConstraints assumptions <> "\nINITIAL CONSTRAINTS\n" <> formatConstraints cs) $ substInstancesAsPossible (assumptions, normalized)
+      (substedAssumptions, substed, substSubst) = -- trace (T.unpack $ "\n⇓\nINITIAL ASSUMPTIONS\n" <> formatConstraints assumptions <> "\nINITIAL CONSTRAINTS\n" <> formatConstraints cs) $
+        substInstancesAsPossible (assumptions, normalized)
       decomposedAssumptions = decomposeAssumptionAll varMap substedAssumptions
       genBndMap = convertGenericBounds $ calculateGenericBounds varMap decomposedAssumptions
-   in trace (T.unpack $ "\nASSUMPTIONS\n" <> formatConstraints decomposedAssumptions <> "\nCONSTRAINTS\n" <> formatConstraints substed) $ case decomposeConstraintsAll varMap genBndMap substed of
+   in -- trace (T.unpack $ "\nASSUMPTIONS\n" <> formatConstraints decomposedAssumptions <> "\nCONSTRAINTS\n" <> formatConstraints substed) $
+       case decomposeConstraintsAll varMap genBndMap substed of
         Left err -> Contradiction err
-        Right remaining -> trace (T.unpack $  "\nDECOMPOSED CONSTRAINTS\n" <> formatConstraints remaining) $
+        Right remaining -> -- trace (T.unpack $  "\nDECOMPOSED CONSTRAINTS\n" <> formatConstraints remaining) $
           case branchConstraints varMap decomposedAssumptions remaining of
             Nothing ->
               -- Only BOUND constraints remain
-              let propagatedConstraints = calculatePropagationAll remaining
-              in case checkContradictions varMap genBndMap propagatedConstraints of
+              let
+                propagatedConstraints = calculatePropagationAll remaining
+                finalSubstitutions = collectFinalSubstitutions propagatedConstraints
+                -- Apply finalSubstitutions to decomposedAssumptions
+                finalSubstedAssumptions = Set.map (applySubstConstraint finalSubstitutions) decomposedAssumptions
+                finalGenBndMap = convertGenericBounds $ calculateGenericBounds varMap finalSubstedAssumptions
+              in case checkContradictions varMap finalGenBndMap propagatedConstraints of
                 Left err -> Contradiction err
                 Right () ->
-                  let finalSubstitutions = collectFinalSubstitutions propagatedConstraints
-                      combinedSubstitutions = Map.unions [substSubst, finalSubstitutions]
+                  let combinedSubstitutions = Map.unions [substSubst, finalSubstitutions]
                   in Success combinedSubstitutions
             Just branches ->
               let branchResults = map (uncurry (solve varMap)) branches

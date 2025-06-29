@@ -82,6 +82,8 @@ reservedWords =
   , "int"
   , "bool"
   , "string"
+  , "unknown"
+  , "never"
   , -- definitions
     "val"
   , "fn"

@@ -3,32 +3,27 @@
 
 module Main (main) where
 
-import           Control.Monad                                (forM_)
-import qualified Data.Text                                    as T
-import qualified Data.Text.IO                                 as TIO
-import           Language.Memento.Backend.JS.Codegen          (formatJSProgram)
-import           Language.Memento.Backend.JS.Compile          (compileToJS)
-import           Language.Memento.Data.AST.Tag                (KProgram)
-import           Language.Memento.Parser                      (parseAST)
-import           Language.Memento.TypeSolver                  (SolveError (..),
-                                                               solveTypedAST)
-import           Language.Memento.TypeSolver.ConstraintGen    (generateConstraints)
-import           Language.Memento.TypeSolver.Data.Constraint  (formatConstraints)
-import           Language.Memento.TypeSolver.SolveConstraints (SolveResult (..))
-import           Language.Memento.TypeSolver.SolveVariances   (solveVariancesFromEnv)
-import           Language.Memento.Typing                      (typeProgramWithTyCons)
-import           System.Directory                             (createDirectoryIfMissing)
-import           System.Environment                           (getArgs)
-import           System.Exit                                  (exitFailure,
-                                                               exitSuccess)
-import           System.FilePath                              (replaceExtension,
-                                                               takeFileName,
-                                                               (</>))
-import           System.IO                                    (hPutStrLn,
-                                                               stderr)
-import           System.Process                               (callProcess)
-import           Text.Megaparsec                              (errorBundlePretty,
-                                                               parse)
+import qualified Data.Text.IO                               as TIO
+import           Language.Memento.Backend.JS.Codegen        (formatJSProgram)
+import           Language.Memento.Backend.JS.Compile        (compileToJS)
+import           Language.Memento.Data.AST.Tag              (KProgram)
+import           Language.Memento.Parser                    (parseAST)
+import           Language.Memento.TypeSolver                (SolveError (..),
+                                                             solveTypedAST)
+import           Language.Memento.TypeSolver.SolveVariances (solveVariancesFromEnv)
+import           Language.Memento.Typing                    (typeProgramWithTyCons)
+import           System.Directory                           (createDirectoryIfMissing)
+import           System.Environment                         (getArgs)
+import           System.Exit                                (exitFailure,
+                                                             exitSuccess)
+import           System.FilePath                            (replaceExtension,
+                                                             takeFileName,
+                                                             (</>))
+import           System.IO                                  (hPrint, hPutStrLn,
+                                                             stderr)
+import           System.Process                             (callProcess)
+import           Text.Megaparsec                            (errorBundlePretty,
+                                                             parse)
 
 -- | Main entry point for the Memento compiler
 main :: IO ()
@@ -39,53 +34,21 @@ main = do
       hPutStrLn stderr "Usage: memento-compiler <command> [options]"
       hPutStrLn stderr ""
       hPutStrLn stderr "Commands:"
-      hPutStrLn stderr "  parse <file>    Parse a Memento source file and show AST"
       hPutStrLn stderr "  check <file>    Parse and type-check a Memento source file"
       hPutStrLn stderr "  compile <file>  Compile a Memento source file to JavaScript"
       hPutStrLn stderr "  run <file>      Compile and run a Memento source file"
       hPutStrLn stderr ""
       hPutStrLn stderr "Examples:"
-      hPutStrLn stderr "  memento-compiler parse example.mmt"
       hPutStrLn stderr "  memento-compiler check example.mmt"
       hPutStrLn stderr "  memento-compiler compile example.mmt"
       hPutStrLn stderr "  memento-compiler run example.mmt"
       exitFailure
-    ["parse", filePath] -> do
-      parseCommand filePath
-    ["check", filePath] -> do
-      checkCommand filePath
-    ["compile", filePath] -> do
-      compileCommand filePath
-    ["run", filePath] -> do
-      runCommand filePath
+    ["check", filePath] -> checkCommand filePath
+    ["compile", filePath] -> compileCommand filePath
+    ["run", filePath] -> runCommand filePath
     _ -> do
       hPutStrLn stderr "Invalid command. Run 'memento-compiler' without arguments for usage."
       exitFailure
-
--- | Parse a Memento source file and display the result
-parseCommand :: FilePath -> IO ()
-parseCommand filePath = do
-  putStrLn $ "Parsing: " ++ filePath
-  putStrLn $ replicate 60 '-'
-
-  -- Read the file
-  contents <- TIO.readFile filePath
-
-  -- Parse the file
-  case parse (parseAST @KProgram) filePath contents of
-    Left errorBundle -> do
-      hPutStrLn stderr "Parse error:"
-      hPutStrLn stderr $ errorBundlePretty errorBundle
-      exitFailure
-    Right ast -> do
-      putStrLn "Parse successful!"
-      putStrLn ""
-      putStrLn "AST:"
-      putStrLn $ replicate 60 '-'
-      print ast
-      putStrLn ""
-      putStrLn "✓ The file was successfully parsed."
-      exitSuccess
 
 -- | Parse and type-check a Memento source file
 checkCommand :: FilePath -> IO ()
@@ -109,24 +72,11 @@ checkCommand filePath = do
       case typeProgramWithTyCons ast of
         Left typingError -> do
           hPutStrLn stderr "Type error:"
-          hPutStrLn stderr $ show typingError
+          hPrint stderr typingError
           exitFailure
         Right (unsolvedTypedAst, tyCons) -> do
           -- Solve variances
           let solvedVariances = solveVariancesFromEnv tyCons
-          putStrLn "Solved variances for type constructors."
-
-          -- Show constraints
-          let constraintAndAssumptions = generateConstraints unsolvedTypedAst
-          putStrLn "Generated constraints:"
-          forM_ constraintAndAssumptions $ \(assumptions, constraints) -> do
-            putStrLn $ replicate 60 '-'
-            putStrLn "Assumptions:"
-            putStrLn $ T.unpack $ formatConstraints assumptions
-            putStrLn ""
-            putStrLn "Constraints:"
-            putStrLn $ T.unpack $ formatConstraints constraints
-            putStrLn ""
 
           -- Solve type constraints
           case solveTypedAST solvedVariances unsolvedTypedAst of
@@ -136,11 +86,10 @@ checkCommand filePath = do
               exitFailure
             Left (UnsolvedVariablesError vars) -> do
               hPutStrLn stderr "Unsolved type variables:"
-              hPutStrLn stderr $ show vars
+              hPrint stderr vars
               exitFailure
             Right _typedAST -> do
               putStrLn $ replicate 60 '-'
-              putStrLn "✓ Type constraint solving successful!"
               putStrLn "✓ The file was successfully type checked."
               exitSuccess
 
@@ -166,7 +115,7 @@ compileCommand filePath = do
       case typeProgramWithTyCons ast of
         Left typingError -> do
           hPutStrLn stderr "Type error:"
-          hPutStrLn stderr $ show typingError
+          hPrint stderr typingError
           exitFailure
         Right (unsolvedTypedAst, tyCons) -> do
           -- Solve variances
@@ -180,7 +129,7 @@ compileCommand filePath = do
               exitFailure
             Left (UnsolvedVariablesError vars) -> do
               hPutStrLn stderr "Unsolved type variables:"
-              hPutStrLn stderr $ show vars
+              hPrint stderr vars
               exitFailure
             Right solvedTypedAst -> do
               putStrLn "Type constraint solving successful!"
@@ -225,11 +174,9 @@ runCommand filePath = do
       case typeProgramWithTyCons ast of
         Left typingError -> do
           hPutStrLn stderr "Type error:"
-          hPutStrLn stderr $ show typingError
+          hPrint stderr typingError
           exitFailure
         Right (unsolvedTypedAst, tyCons) -> do
-          putStrLn "Type checking successful!"
-
           -- Solve variances
           let solvedVariances = solveVariancesFromEnv tyCons
 
@@ -241,7 +188,7 @@ runCommand filePath = do
               exitFailure
             Left (UnsolvedVariablesError vars) -> do
               hPutStrLn stderr "Unsolved type variables:"
-              hPutStrLn stderr $ show vars
+              hPrint stderr vars
               exitFailure
             Right solvedTypedAst -> do
               putStrLn "Type constraint solving successful!"

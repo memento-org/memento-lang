@@ -8,6 +8,10 @@ data Option<auto> {
 
 val x : Option<number> = Some(42);
 
+// subtyping
+
+val y : Option<unknown> = x;
+
 // Function definition
 
 fn add(a: number, b: number) -> number {
