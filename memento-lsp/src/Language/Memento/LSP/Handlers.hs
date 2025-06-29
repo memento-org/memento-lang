@@ -55,7 +55,10 @@ handlers logMessage = mconcat
       let TNotificationMessage _ _ (DidSaveTextDocumentParams doc _maybeContent) = msg
           TextDocumentIdentifier uri = doc
       -- Read fresh content from disk for real-time diagnostics
-      let filePath = T.unpack $ getUri uri
+      let uriText = getUri uri
+          filePath = if T.isPrefixOf "file://" uriText
+                     then T.unpack $ T.drop 7 uriText  -- Remove "file://" prefix
+                     else T.unpack uriText
       fileContent <- liftIO $ readFile filePath
       let content = T.pack fileContent
       logMessage C.Debug ("Processing saved file: " <> T.pack (show uri))
@@ -69,4 +72,13 @@ handlers logMessage = mconcat
       let diagnosticsMap = Map.fromList [(Nothing, SortedList.toSortedList diagnostics)]
       publishDiagnostics 100 (toNormalizedUri uri) Nothing diagnosticsMap
       logMessage C.Debug "Published real compiler diagnostics"
+
+  , notificationHandler SMethod_TextDocumentDidClose $ \msg -> do
+      logMessage C.Debug "Document closed"
+      let TNotificationMessage _ _ (DidCloseTextDocumentParams doc) = msg
+          TextDocumentIdentifier uri = doc
+      logMessage C.Debug ("Closed file: " <> T.pack (show uri))
+      -- Clear diagnostics for the closed file
+      let diagnosticsMap = Map.fromList [(Nothing, SortedList.toSortedList [])]
+      publishDiagnostics 100 (toNormalizedUri uri) Nothing diagnosticsMap
   ]
