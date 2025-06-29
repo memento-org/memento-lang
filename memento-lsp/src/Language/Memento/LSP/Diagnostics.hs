@@ -30,7 +30,7 @@ computeDiagnostics :: Uri -> Text -> IO [Diagnostic]
 computeDiagnostics uri content = do
   case parse (parseAST @KProgram) (T.unpack $ getUri uri) content of
     Left errorBundle -> 
-      pure $ parseToDiagnostics errorBundle
+      pure $ parseToDiagnostics errorBundle content
     Right parsedProgram ->
       case typeProgramWithTyCons parsedProgram of
         Left typingError ->
@@ -55,8 +55,8 @@ computeDiagnostics uri content = do
               pure []
 
 -- | Convert parse errors to LSP diagnostics
-parseToDiagnostics :: ParseErrorBundle Text Void -> [Diagnostic]
-parseToDiagnostics bundle = 
+parseToDiagnostics :: ParseErrorBundle Text Void -> Text -> [Diagnostic]
+parseToDiagnostics bundle content = 
   case bundleErrors bundle of
     err :| _ -> [parseSingleError err]
     where
@@ -71,7 +71,6 @@ parseToDiagnostics bundle =
         , _relatedInformation = Nothing
         , _data_ = Nothing
         }
-      content = ""  -- TODO: Get actual content from bundle
 
 -- | Convert solve errors to diagnostics
 solveErrorToDiagnostics :: SolveError -> [Diagnostic]
