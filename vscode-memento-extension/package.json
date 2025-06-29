@@ -1,33 +1,51 @@
 {
   "name": "memento-language-support",
   "displayName": "Memento Language Support",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/memento-org/memento-lang"
+  },
   "description": "Language support for Memento programming language",
   "version": "0.1.0",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.60.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:memento",
     "workspaceContains:**/*.mmt"
   ],
   "contributes": {
-    "languages": [{
-      "id": "memento",
-      "aliases": ["Memento", "memento"],
-      "extensions": [".mmt"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "memento",
-      "scopeName": "source.memento",
-      "path": "./syntaxes/memento.tmLanguage.json"
-    }],
-    "commands": [{
-      "command": "memento.test",
-      "title": "Test Memento LSP"
-    }]
+    "languages": [
+      {
+        "id": "memento",
+        "aliases": [
+          "Memento",
+          "memento"
+        ],
+        "extensions": [
+          ".mmt"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "memento",
+        "scopeName": "source.memento",
+        "path": "./syntaxes/memento.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "memento.test",
+        "title": "Test Memento LSP"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
