@@ -1,0 +1,23 @@
+val x : 42 | 0 = 42;
+
+val y: (42 | 0) & (42 | 3) = 42;
+
+data Option<auto> {
+  fn Some<T>(value: T) -> Option<T>,
+  fn None<T>() -> Option<T>,
+};
+
+data Result<auto, auto> {
+  fn Ok<T, E>(value: T) -> Result<T, E>,
+  fn Err<T, E>(error: E) -> Result<T, E>,
+};
+
+val opt1 : Option<number> | Result<number, string> = Some(42);
+
+// NOTE: Exhaustive checking is not implemented yet.
+val z : number = switch (opt1) {
+  case (Some(n)) -> n,
+  case (None()) -> 0,
+  case (Ok(n)) -> n,
+  case (Err(e)) -> 0
+};
