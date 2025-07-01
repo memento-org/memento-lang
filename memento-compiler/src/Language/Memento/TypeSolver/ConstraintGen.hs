@@ -122,6 +122,8 @@ generateExprConstraints ast =
           addConstraint $ leftTy ?<: leftExpected
           addConstraint $ rightTy ?<: rightExpected
           addConstraint $ retExpected ?<: exprTy
+          generateExprConstraints leftAST
+          generateExprConstraints rightAST
       ELiteral literalAST -> case safeProjectVia @Syntax literalAST of
         NumberLiteral n -> addConstraint $ injectFix (TLiteral $ LNumber n) ?<: exprTy
         IntLiteral n    -> addConstraint $ injectFix (TLiteral $ LInt n) ?<: exprTy
@@ -177,6 +179,7 @@ generateExprConstraints ast =
           forM_ (zip scrutineesTy patternsTy) $ \(scrutineeTy, patTy) ->
             addConstraint $ scrutineeTy ?<: patTy
           mapM_ (generatePatternAssumptions . fst) patternAndTypes
+          generateExprConstraints caseExpr
       EBlock blockAST ->
         let
           BlockTyInfo blockTy = safeProjectVia @(TyInfo UnsolvedTy) blockAST

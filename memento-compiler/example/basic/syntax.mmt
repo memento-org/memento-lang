@@ -6,14 +6,14 @@ data Option<auto> {
 
 // Value definition
 
-val x : Option<number> = mk_some(42);
+val x : Option<unknown> = mk_some(42);
 
 // SubTyping
 
 val y : Option<unknown> = x;
 
 
-data Consumer<in> {
+data Consumer<auto> {
   fn mk_consumer<T>(consumer : fn (x: T) -> number)
       -> Consumer<T>,
 };

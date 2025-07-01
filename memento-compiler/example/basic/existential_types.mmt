@@ -27,21 +27,3 @@ fn main() -> bool {
   let isLazy42 = map_lazy(fn (x) -> x == 42, lazyValue);
   force(isLazy42)
 };
-
-
-data TypedAST<auto> {
-  fn mk_int_lit(value: int) -> TypedAST<int>,
-  fn mk_add(left: TypedAST<int>, right: TypedAST<int>) -> TypedAST<int>,
-  fn mk_eq<T>(left: TypedAST<int>, right: TypedAST<int>) -> TypedAST<bool>,
-  fn mk_if<T>(cond: TypedAST<bool>, then_branch: TypedAST<T>, else_branch: TypedAST<T>) -> TypedAST<T>,
-};
-
-fn eval<T>(ast: TypedAST<T>) -> T {
-  switch (ast) {
-    case (mk_int_lit(value)) -> value,
-    case (mk_add(left, right)) -> eval(left) + eval(right),
-    case (mk_eq(left, right)) -> eval(left) == eval(right),
-    case (mk_if(cond, then_branch, else_branch)) ->
-      if(eval(cond)){ eval(then_branch) } else { eval(else_branch) }
-  }
-};

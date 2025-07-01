@@ -1,7 +1,7 @@
 data TypedAST<auto> {
   fn mk_int_lit<T>(value: T) -> TypedAST<T>,
-  fn mk_add(left: TypedAST<int>, right: TypedAST<int>) -> TypedAST<int>,
-  fn mk_eq<T>(left: TypedAST<int>, right: TypedAST<int>) -> TypedAST<bool>,
+  fn mk_add(left: TypedAST<number>, right: TypedAST<number>) -> TypedAST<number>,
+  fn mk_eq<T>(left: TypedAST<number>, right: TypedAST<number>) -> TypedAST<bool>,
   fn mk_if<T>(cond: TypedAST<bool>, then_branch: TypedAST<T>, else_branch: TypedAST<T>)
     -> TypedAST<T>
 };

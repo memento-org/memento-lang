@@ -70,7 +70,7 @@ calculateGenericBounds varMap assumptions =
              in (name, (Set.fromList lowers, Set.fromList uppers))
         )
         generics
-   in -- trace (T.unpack $ "\nFINAL PROPAGATED GEN MAP\n" <> T.pack (show result)) $
+   in -- trace ("\nFINAL PROPAGATED GEN MAP\n" <> show result) $
     result
 
 -- | Recursively decompose all assumptions until a fixpoint is reached
