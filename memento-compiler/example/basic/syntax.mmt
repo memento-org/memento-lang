@@ -1,24 +1,32 @@
 // Data definition
 data Option<auto> {
-  fn Some<T>(value: T) -> Option<T>,
-  fn None<T>() -> Option<T>,
+  fn mk_some<T>(value: T) -> Option<T>,
+  fn mk_none<T>() -> Option<T>,
 };
 
 // Value definition
 
-val x : Option<number> = Some(42);
+val x : Option<number> = mk_some(42);
 
-// subtyping
+// SubTyping
 
 val y : Option<unknown> = x;
+
+
+data Consumer<in> {
+  fn mk_consumer<T>(consumer : fn (x: T) -> number)
+      -> Consumer<T>,
+};
+
+val consumer : Consumer<number> = mk_consumer(fn (x) -> x + 1);
+
+val consumer2 : Consumer<never> = consumer;
 
 // Function definition
 
 fn add(a: number, b: number) -> number {
   a + b
 };
-
-
 
 // Type definition
 
@@ -48,8 +56,8 @@ fn describeNumber(n: number) -> string {
 // Switch with Constructors
 val describeNumber2 : fn (opt : Option<number>) -> number
   = fn (opt) -> switch (opt) {
-    case (Some(n)) -> n,
-    case (None()) -> 0
+    case (mk_some(n)) -> n,
+    case (mk_none()) -> 0
   };
 
 // Value with type parameters
@@ -60,21 +68,19 @@ val id<U> : fn (x : U) -> U = fn (x) -> {
 // Function with type parameters
 fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
   switch (opt) {
-    case (Some(value)) -> Some(f(value)),
-    case (None()) -> None()
+    case (mk_some(value)) -> mk_some(f(value)),
+    case (mk_none()) -> mk_none()
   }
 };
 
-
-/*
 // Pattern matching
-fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
+fn unwrapOr<T>(opt: Option<T>, default_val: T) -> T {
   switch (opt) {
-    case (Some(value)) -> value,
-    case (None()) -> default
+    case (mk_some(value)) -> value,
+    case (mk_none()) -> default_val
   }
 };
-*/
+
 
 fn main() -> number {
   id(42)

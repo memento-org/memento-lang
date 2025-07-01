@@ -44,6 +44,10 @@
       {
         "command": "memento.test",
         "title": "Test Memento LSP"
+      },
+      {
+        "command": "memento.restartLSP",
+        "title": "Memento: Restart Language Server"
       }
     ]
   },

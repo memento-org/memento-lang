@@ -1,5 +1,9 @@
-{-# LANGUAGE RankNTypes #-}
-module Language.Memento.Data.Environment.Variance (Variance(..), composeVariance, (|*|), productVariance, combineVariance, (|+|), sumVariance) where
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes        #-}
+
+module Language.Memento.Data.Environment.Variance (Variance(..), composeVariance, (|*|), productVariance, combineVariance, (|+|), sumVariance, formatVariance) where
+
+import           Data.Text (Text)
 
 data Variance =
               Bivariant
@@ -7,6 +11,13 @@ data Variance =
               | Contravariant
               | Invariant
   deriving (Show, Eq, Ord)
+
+formatVariance :: Variance -> Text
+formatVariance v = case v of
+  Bivariant     -> "phantom"
+  Covariant     -> "out"
+  Contravariant -> "in"
+  Invariant     -> "inout"
 
 -- ComposeVariance x y is variance y in variance x: e.g., for function type (X => Y) => Z, X is covariant because contravariant (X) in contravariant (X => Y)
 composeVariance :: Variance -> Variance -> Variance

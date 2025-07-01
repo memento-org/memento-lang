@@ -1,21 +1,27 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.Memento.TypeSolver.SolveVariances (solveVariances, solveVariancesFromEnv) where
+module Language.Memento.TypeSolver.SolveVariances (VarianceError(..), solveVariances, solveVariancesFromEnv, checkVarianceConsistency) where
 
 
 import qualified Data.Map.Strict                            as Map
-import qualified Data.Set                                   as Set
 import qualified Data.Text                                  as T
 import           Language.Memento.Data.Environment.Ty       (TyCons,
                                                              TyConsConstructor (..))
 import           Language.Memento.Data.Environment.Variance (Variance (..),
                                                              combineVariance,
                                                              composeVariance)
-import           Language.Memento.Data.Functor.Coproduct    (absurdVoidF, (?:))
-import           Language.Memento.Data.Functor.FixedPoint   (foldFix)
+import           Language.Memento.Data.Functor.FixedPoint   (projectFix)
 import           Language.Memento.Data.Ty                   (Ty, TyF (..))
 
+
+data VarianceError = VarianceError
+  { veTyConsName       :: T.Text
+  , veValConsName      :: T.Text
+  , veVarianceIdx      :: Int
+  , veExpectedVariance :: Variance
+  , veActualVariance   :: Variance
+  } deriving (Show, Eq, Ord)
 
 {-
 This module solves variances of type constructor.
@@ -27,57 +33,7 @@ data VarianceExpr
   | ConstE Variance            -- ^ Constant variance value
   | CombineE [VarianceExpr]    -- ^ Addition (+) - parameter appears multiple times
   | ComposeE [VarianceExpr]    -- ^ Multiplication (*) - parameter appears nested
-  deriving (Eq, Show)
-
-{-
-REFERENCE
-
--- Analyze variance of a specific type parameter in a type expression
-analyzeParameterVariance :: TypeConstructorVariances -> T.Text -> Type -> Variance
-analyzeParameterVariance varsMap paramName typeExpr = case typeExpr of
-  -- Base cases - no variance contribution
-  TNumber -> Bivariant
-  TBool -> Bivariant
-  TString -> Bivariant
-  TNever -> Bivariant
-  TUnknown -> Bivariant
-  TLiteral _ -> Bivariant
-  TVar _ -> Bivariant
-  -- Generic type parameter - this is where we find our target!
-  TGeneric name
-    | name == paramName -> Covariant
-    | otherwise -> Invariant
-  -- Function type - argument is contravariant, return is covariant
-  TFunction argsType retType ->
-    let argVariances = map (flipVariance . analyzeParameterVariance varsMap paramName) argsType
-        retVariance = analyzeParameterVariance varsMap paramName retType
-     in foldl combineVariance retVariance argVariances
-  -- Union type - maintains current variance for all members
-  TUnion types ->
-    let variances = map (analyzeParameterVariance varsMap paramName) (Set.toList types)
-     in foldl combineVariance Bivariant variances
-  -- Intersection type - maintains current variance for all members
-  TIntersection types ->
-    let variances = map (analyzeParameterVariance varsMap paramName) (Set.toList types)
-     in foldl combineVariance Bivariant variances
-  -- Type application - need to look up variance of the other types
-  TApplication name argTypes
-    | Just variances <- Map.lookup name varsMap ->
-        let argVariances =
-              zipWith
-                ( \arg var ->
-                    composeVariance var $
-                      analyzeParameterVariance
-                        varsMap
-                        paramName
-                        arg
-                )
-                argTypes
-                variances
-         in foldl combineVariance Bivariant argVariances
-    | otherwise -> Invariant -- No variance info for this constructor
-
--}
+  deriving (Eq, Show, Ord)
 
 -- | Solve TyCons variances!
 -- | Maybe Variances ->
@@ -113,12 +69,17 @@ solveVariancesFromEnv tyCons = solvedTyCons
       | (idx, maybeVar) <- zip [0..] variances
       ]
 
+    replacedTyCons :: Map.Map T.Text [VarianceExpr] -- Map of type constructor name to its variances
+    replacedTyCons = Map.fromList $ map (\(tyConName, (variances, _)) ->
+      (tyConName, replaceWithVars tyConName variances)
+      ) (Map.toList tyCons)
+
     -- Generate equations for all type constructors
     allEquations :: Map.Map T.Text VarianceExpr
     allEquations = Map.unions
       [ generateEquationsForTyCon tyConName vars constructors
-      | (tyConName, (maybeVars, constructors)) <- Map.toList tyCons
-      , let vars = replaceWithVars tyConName maybeVars
+      | (tyConName, vars) <- Map.toList replacedTyCons,
+      let constructors = snd (Map.findWithDefault ([], []) tyConName tyCons)
       ]
 
     -- Generate equations for a single type constructor
@@ -130,58 +91,24 @@ solveVariancesFromEnv tyCons = solvedTyCons
       ]
 
     -- Generate equations for a single value constructor
+    -- Vars : [VarianceExpr] - for Ty<auto, in, out>, we get [VarE $tyConName_0, ConstE Contravariant, ConstE Covariant]
     generateEquationsForConstructor :: T.Text -> [VarianceExpr] -> TyConsConstructor -> Map.Map T.Text VarianceExpr
     generateEquationsForConstructor _tyConName vars constructor =
       let
-        -- Get the generics for this value constructor
-        valConGenerics = Set.fromList (tccGenerics constructor)
+        -- for mk_foo(...) -> Ty<number, T, T | bool>, we get
+        -- tyConsGenerics = ["number", "T", "T | bool"]  -- List of Ty
+        tyConsGenerics = tccReturn constructor
 
-        -- Analyze arguments (contravariant position) 
-        argEquations = Map.unionsWith (\e1 e2 -> CombineE [e1, e2])
-          [ analyzeTypeForGenerics valConGenerics Contravariant ty
-          | ty <- tccArgs constructor
-          ]
-
-        -- Analyze return type arguments and map to type constructor parameters
-        retEquations = Map.unionsWith (\e1 e2 -> CombineE [e1, e2])
-          [ analyzeReturnTypeForParam vars idx ty valConGenerics
-          | (idx, ty) <- zip [0..] (tccReturn constructor)
-          , idx < length vars
-          ]
+        -- for mk_foo(string, T, T | bool) -> Ty<...>, we get
+        -- tccArgs = [string, T, T | bool]  -- List of
+        valueConsArgs = tccArgs constructor
       in
-        Map.unionWith (\e1 e2 -> CombineE [e1, e2]) argEquations retEquations
-
-    -- Analyze how a type parameter appears in return type position
-    analyzeReturnTypeForParam :: [VarianceExpr] -> Int -> Ty -> Set.Set T.Text -> Map.Map T.Text VarianceExpr
-    analyzeReturnTypeForParam vars paramIdx retTy valConGenerics =
-      case vars !! paramIdx of
-        VarE varName -> 
-          let genericVariances = analyzeTypeForGenerics valConGenerics Covariant retTy
-              paramEquationList = Map.elems genericVariances
-          in case paramEquationList of
-               [] -> Map.empty
-               [single] -> Map.singleton varName single
-               multiple -> Map.singleton varName (CombineE multiple)
-        _ -> Map.empty  -- Already solved variance, no equation needed
-
-    -- Analyze variance of generics in a type at a given position, returning Map of generics to variance expressions
-    analyzeTypeForGenerics :: Set.Set T.Text -> Variance -> Ty -> Map.Map T.Text VarianceExpr
-    analyzeTypeForGenerics generics currentVariance = foldFix $ (\case
-      TGeneric g 
-        | Set.member g generics -> Map.singleton g (ConstE currentVariance)
-        | otherwise -> Map.empty
-      TFunction args ret ->
-        let argMaps = map (Map.map (\e -> ComposeE [ConstE Contravariant, e])) args
-            retMap = Map.map (\e -> ComposeE [ConstE Covariant, e]) ret
-        in Map.unionsWith (\e1 e2 -> CombineE [e1, e2]) (retMap : argMaps)
-      TApplication _ args -> 
-        Map.unionsWith (\e1 e2 -> CombineE [e1, e2]) args
-      TUnion ts -> 
-        Map.unionsWith (\e1 e2 -> CombineE [e1, e2]) ts
-      TIntersection ts ->
-        Map.unionsWith (\e1 e2 -> CombineE [e1, e2]) ts
-      _ -> Map.empty
-      ) ?: absurdVoidF
+        Map.fromList $ [(varName, expr) |
+          (VarE varName, tyConsGeneric) <- zip vars tyConsGenerics,
+          let expr = case projectFix tyConsGeneric of
+                        Just (TGeneric g) -> CombineE $ map (analyzeVarianceExpr replacedTyCons g) valueConsArgs
+                        _                 -> ConstE Invariant  -- Non-generic types are invariant
+          ]
 
     -- Solve the equations
     solvedEquations = solveVariances allEquations
@@ -197,6 +124,85 @@ solveVariancesFromEnv tyCons = solvedTyCons
                        ]
       in (solvedVars, constructors)
       ) tyCons
+
+
+analyzeVarianceExpr :: Map.Map T.Text [VarianceExpr] -> T.Text -> Ty -> VarianceExpr
+analyzeVarianceExpr replacedTyCons genericName ty = case projectFix ty of
+      Just (TGeneric g)
+        | g == genericName -> ConstE Covariant  -- Generic type parameter is covariant
+        | otherwise -> ConstE Bivariant -- Non-generic type parameter is bivariant (no-usage)
+      Just (TFunction args ret) ->
+        let argExprs = map (analyzeVarianceExpr replacedTyCons genericName) args
+            retExpr = analyzeVarianceExpr replacedTyCons genericName ret
+        in CombineE (retExpr : map (ComposeE . (: [ConstE Contravariant])) argExprs)  -- Function arguments are contravariant, return is covariant
+      Just (TApplication tyConsName args) ->
+        let
+          tyConsVariances = Map.lookup tyConsName replacedTyCons
+        in case tyConsVariances of
+          Just varExprs ->
+            CombineE
+              $ zipWith (\ varExpr arg -> ComposeE (varExpr : [analyzeVarianceExpr replacedTyCons genericName arg])) varExprs args
+          Nothing -> ConstE Invariant  -- No variance info for this type constructor
+      Just (TUnion ts) ->
+        CombineE $ map (analyzeVarianceExpr replacedTyCons genericName) ts  -- Union types are bivariant
+      Just (TIntersection ts) ->
+        CombineE $ map (analyzeVarianceExpr replacedTyCons genericName) ts  -- Intersection types are bivariant
+      Just (TLiteral _) -> ConstE Bivariant  -- Literal types are bivariant
+      Just TNumber -> ConstE Bivariant  -- Number type is bivari
+      Just TInt -> ConstE Bivariant  -- Number type is bivari
+      Just TBool -> ConstE Bivariant  -- Bool type is bivariant
+      Just TString -> ConstE Bivariant  -- String type is bivari
+      Just TNever -> ConstE Bivariant  -- Never type is bivari
+      Just TUnknown -> ConstE Bivariant  -- Unknown type is bivari
+      Nothing -> ConstE Invariant  -- Fallback for unsupported types
+
+-- | solveVariancesFromEnv のメイン処理はユーザーから指定された Variance に関する不等式に関してなんら関与しないので、
+-- | 最終的に作られた Variance List が矛盾を起こすことがある。
+-- | その時のための検知用
+-- | 返り値はエラーリスト of (型コンストラクタ名, 値コンストラクタ名, バリアンスのインデックス) (空なら成功)
+checkVarianceConsistency :: TyCons Variance -> [VarianceError]
+checkVarianceConsistency tyCons =
+  let
+      -- Compute Text to VarianceExpr map fromTyCons
+      solvedVariances :: Map.Map T.Text [VarianceExpr]
+      solvedVariances = Map.map (map ConstE . fst) tyCons
+  in [ VarianceError
+        { veTyConsName  = name
+        , veValConsName = constructorName
+        , veVarianceIdx = idx
+        , veExpectedVariance = expectedVar
+        , veActualVariance = var
+        }
+      | (name, (vars, constructors)) <- Map.toList tyCons,
+        constructor <- constructors,
+        -- Now we get name, idx, var
+        let
+          constructorName = tccName constructor
+          constructorArgs = tccArgs constructor
+          constructorReturnGens = tccReturn constructor,
+        (idx, var, constructorReturnGen) <- zip3 [0 ..] vars constructorReturnGens -- Variances
+        , let varExpr = case projectFix constructorReturnGen of
+                Just (TGeneric g) -> CombineE $ map (analyzeVarianceExpr solvedVariances g) constructorArgs
+                _                 -> ConstE Invariant  -- Non-generic types are invariant
+              expectedVar = evalExpr Map.empty varExpr
+        , -- ユーザー指定の Variance が、期待される Variance より小さくなければいけない
+          -- 例えば Covariance が期待されている場所に Invariance を突っ込むことは可能
+          not $ var `isSubVarianceOf` expectedVar
+      ]
+
+-- | Variance Lattice
+isSubVarianceOf :: Variance -> Variance -> Bool
+isSubVarianceOf v1 v2 = case (v1, v2) of
+  (Covariant, Covariant)         -> True
+  (Contravariant, Contravariant) -> True
+  (Invariant, Invariant)         -> True
+  (Bivariant, Bivariant)         -> True
+  (Covariant, Bivariant)         -> True
+  (Contravariant, Bivariant)     -> True
+  (Invariant, Bivariant)         -> True
+  (Invariant, Covariant)         -> True
+  (Invariant, Contravariant)     -> True
+  _                              -> False
 
 -- | Solve variance equations using fixed-point iteration
 solveVariances :: Map.Map T.Text VarianceExpr -> Map.Map T.Text Variance
@@ -217,9 +223,9 @@ solveVariances equations = findFixedPoint initial
          then current
          else findFixedPoint next
 
-    -- Evaluate expression with current variable assignments
-    evalExpr :: Map.Map T.Text Variance -> VarianceExpr -> Variance
-    evalExpr env expr = case expr of
+-- Evaluate expression with current variable assignments
+evalExpr :: Map.Map T.Text Variance -> VarianceExpr -> Variance
+evalExpr env expr = case expr of
       VarE x -> Map.findWithDefault Bivariant x env
       ConstE v -> v
       CombineE [] -> Bivariant  -- Identity for combine

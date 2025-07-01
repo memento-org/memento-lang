@@ -1,5 +1,4 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Language.Memento.TypeSolver.SolveAssumptions
   ( calculateGenericBounds
@@ -29,21 +28,19 @@ import           Language.Memento.Data.Ty                    (Ty, TyF (..),
                                                               unsolvedTyToTy)
 import           Language.Memento.TypeSolver.Data.Constraint (Assumption,
                                                               Constraint (..))
-import           Language.Memento.TypeSolver.Utils          (Bounds (..),
+import           Language.Memento.TypeSolver.Utils           (Bounds (..),
                                                               boundsToConstraints,
                                                               containsGeneric,
                                                               isNever,
                                                               isTrivialConstraint,
-                                                              isUnknown,
-                                                              tNever,
-                                                              tUnknown)
+                                                              isUnknown)
 
 -- | Calculate generic bounds from a set of assumptions
-calculateGenericBounds :: TyCons Variance -> Set Assumption -> Map Text (Ty, Ty)
-calculateGenericBounds _varMap assumptions =
+calculateGenericBounds :: TyCons Variance -> Set Assumption -> Map Text (Set Ty, Set Ty)
+calculateGenericBounds varMap assumptions =
   let
     -- Apply propagation first to find all transitive relationships
-    propagatedAssumptions = calculatePropagationAssumptionsAll assumptions
+    propagatedAssumptions = calculatePropagationAssumptionsAll $ decomposeAssumptionAll varMap assumptions
     takeUpper :: Text -> Constraint -> Maybe Ty
     takeUpper name = \case
       IsSubtypeOf t1 t2 | isGenericNamed name t1 -> unsolvedTyToTy t2
@@ -64,23 +61,17 @@ calculateGenericBounds _varMap assumptions =
         (Just n, _) -> Just n
         (_, Just n) -> Just n
         _           -> Nothing
-   in
-    Map.fromList $
+
+    result = Map.fromList $
       map
         ( \name ->
             let uppers = takeUppers name
                 lowers = takeLowers name
-                upperBound = case uppers of
-                  []  -> tUnknown
-                  [t] -> t
-                  ts  -> injectFix $ TIntersection ts
-                lowerBound = case lowers of
-                  []  -> tNever
-                  [t] -> t
-                  ts  -> injectFix $ TUnion ts
-             in (name, (lowerBound, upperBound))
+             in (name, (Set.fromList lowers, Set.fromList uppers))
         )
         generics
+   in -- trace (T.unpack $ "\nFINAL PROPAGATED GEN MAP\n" <> T.pack (show result)) $
+    result
 
 -- | Recursively decompose all assumptions until a fixpoint is reached
 decomposeAssumptionAll :: TyCons Variance -> Set Assumption -> Set Assumption
@@ -110,7 +101,67 @@ decomposeAssumption varMap = \case
       -- Union/Intersection decomposition
       (TUnion ts, _) -> (Set.empty, Set.fromList [IsSubtypeOf t' t2 | t' <- ts])
       (_, TIntersection ts) -> (Set.empty, Set.fromList [IsSubtypeOf t1 t' | t' <- ts])
-      (_, TUnion _) -> (Set.empty, Set.empty) -- Cannot decompose t <: Union
+
+      (_, TUnion []) -> (Set.empty, Set.singleton $ IsSubtypeOf (injectFix t1F) $ injectFix TNever) -- Empty union, t <: Never
+      (TIntersection [], _) -> (Set.empty, Set.singleton $ IsSubtypeOf (injectFix TUnknown) (injectFix t2F)) -- Empty intersection, Unknown <: t2
+
+      (tl, TUnion [tr]) -> (Set.empty, Set.singleton $ IsSubtypeOf (injectFix tl) tr) -- Empty union, t <: Never
+      (TIntersection [tl], tr) -> (Set.empty, Set.singleton $ IsSubtypeOf tl (injectFix tr)) -- Empty intersection, Unknown <: t2
+
+      -- 構造判定
+      -- 右辺の TUnion が Unknown を含まない場合、左辺と同じ TApplication を残して右辺を削れる (異なる data types 間に関係が無いので)
+      -- またその時に、バリアンスに基づいて、バリアンスが正なら | として結合し右側、負なら & として結合し左側にできる
+      (TApplication tc1 args1, TUnion trs)
+        | not (any isUnknown trs)
+        , Just (variances, _) <- Map.lookup tc1 varMap
+        -> let
+            filteredTrsArgs = mapMaybe (\t -> case projectFix t of
+              Just (TApplication tc2 args2) | tc1 == tc2 && length args2 == length args1 ->
+                Just args2
+              _ -> Nothing) trs
+            -- 第 idx 引数に対応した assumptions を取ってくる
+            argAssumptions idx =
+              let
+                arg2s = map (!! idx) filteredTrsArgs
+                variance = variances !! idx
+                arg1 = args1 !! idx
+              in case variance of
+                -- Covariant 右辺に args の union を持ってくる
+                Covariant -> Set.singleton $ IsSubtypeOf arg1 (injectFix $ TUnion arg2s)
+                -- Contravariant 左辺に args の intersection を持ってくる
+                Contravariant -> Set.singleton $ IsSubtypeOf (injectFix $ TIntersection arg2s) arg1
+                -- Invariant, Bivariant の場合はとりあえず情報なしとしておく
+                _ -> Set.empty
+           in -- 各引数の assumptions を結合して返す
+            (Set.empty, Set.unions $ map argAssumptions [0 .. length args1 - 1])
+
+      -- 同様。左辺の TIntersection が Never を含まない場合、右辺と同じ TApplication を残して左辺を削れる
+      -- またその時に、バリアンスが正なら & として左側、負なら | として結合し右側にできる
+      (TIntersection tls, TApplication tc2 args2)
+        | not (any isNever tls)
+        , Just (variances, _) <- Map.lookup tc2 varMap
+        -> let
+            filteredTlsArgs = mapMaybe (\t -> case projectFix t of
+              Just (TApplication tc1 args1) | tc1 == tc2 && length args1 == length args2 ->
+                Just args1
+              _ -> Nothing) tls
+            -- 第 idx 引数に対応した assumptions を取ってくる
+            argAssumptions idx =
+              let
+                arg1s = map (!! idx) filteredTlsArgs
+                variance = variances !! idx
+                arg2 = args2 !! idx
+              in case variance of
+                -- Covariant 左辺に args の intersection を持ってくる
+                Covariant -> Set.singleton $ IsSubtypeOf (injectFix $ TIntersection arg1s) arg2
+                -- Contravariant 右辺に args の union を持ってくる
+                Contravariant -> Set.singleton $ IsSubtypeOf arg2 (injectFix $ TUnion arg1s)
+                -- Invariant, Bivariant の場合はとりあえず情報なしとしておく
+                _ -> Set.empty
+           in -- 各引数の assumptions を結合して返す
+            (Set.empty, Set.unions $ map argAssumptions [0 .. length args2 - 1])
+
+      (_, TUnion _) -> (Set.empty, Set.empty)
       (TIntersection _, _) -> (Set.empty, Set.empty) -- Cannot decompose Intersection <: t
 
       -- Save generic constraints for later bound computation
@@ -156,8 +207,6 @@ extractGeneric ty = case projectFix ty of
   _                    -> Nothing
 
 
-
-
 -- Propagation functionality
 
 -- | Unified variable type to handle both generics and type variables
@@ -196,7 +245,6 @@ isVariable var ty = case var of
     Just (TyVar v) -> v == tyVar
     Nothing        -> False
 
-
 -- | Calculate bounds for any variable (generic or type var)
 calculateBoundsForVar :: Variable -> Set Assumption -> Bounds
 calculateBoundsForVar var assumptions =
@@ -233,5 +281,6 @@ calculatePropagationAssumptions assumptions =
 calculatePropagationAssumptionsAll :: Set Assumption -> Set Assumption
 calculatePropagationAssumptionsAll assumptions =
   case calculatePropagationAssumptions assumptions of
-    Nothing    -> assumptions
+    Nothing    -> -- trace (T.unpack $ "\nFINAL PROPAGATED ASSUMPTIONS\n" <> formatConstraints assumptions) $
+      assumptions
     Just newAs -> calculatePropagationAssumptionsAll (Set.union assumptions newAs)

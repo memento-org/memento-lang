@@ -13,7 +13,8 @@ module Language.Memento.Typing.Core (
   freshTyVar,
   freshGeneric,
   syntaxVarianceToVariance,
-  extractSourcePos
+  extractSourcePos,
+  extractSourcePosRange
 ) where
 
 import           Control.Monad.Except                            (ExceptT)
@@ -41,25 +42,25 @@ import           Text.Megaparsec                                 (SourcePos,
 import           Text.Megaparsec.Pos                             (unPos)
 
 data TypingError
-  = UndefinedTypeConstructor Text (Maybe SourcePos)
-  | UndefinedValueConstructor Text (Maybe SourcePos)
-  | UndefinedVariable Text (Maybe SourcePos)
-  | ArityMismatch Text Int Int (Maybe SourcePos) -- name, expected, actual
-  | TypeVariableNotInScope Text (Maybe SourcePos)
+  = UndefinedTypeConstructor Text (Maybe (SourcePos, SourcePos))
+  | UndefinedValueConstructor Text (Maybe (SourcePos, SourcePos))
+  | UndefinedVariable Text (Maybe (SourcePos, SourcePos))
+  | ArityMismatch Text Int Int (Maybe (SourcePos, SourcePos)) -- name, expected, actual
+  | TypeVariableNotInScope Text (Maybe (SourcePos, SourcePos))
   deriving (Eq)
 
 instance Show TypingError where
   show = \case
     UndefinedTypeConstructor name Nothing -> "UndefinedTypeConstructor " ++ T.unpack name
-    UndefinedTypeConstructor name (Just pos) -> "UndefinedTypeConstructor " ++ T.unpack name ++ " at " ++ showSourcePos pos
+    UndefinedTypeConstructor name (Just (startPos, _)) -> "UndefinedTypeConstructor " ++ T.unpack name ++ " at " ++ showSourcePos startPos
     UndefinedValueConstructor name Nothing -> "UndefinedValueConstructor " ++ T.unpack name
-    UndefinedValueConstructor name (Just pos) -> "UndefinedValueConstructor " ++ T.unpack name ++ " at " ++ showSourcePos pos
+    UndefinedValueConstructor name (Just (startPos, _)) -> "UndefinedValueConstructor " ++ T.unpack name ++ " at " ++ showSourcePos startPos
     UndefinedVariable name Nothing -> "UndefinedVariable " ++ T.unpack name
-    UndefinedVariable name (Just pos) -> "UndefinedVariable " ++ T.unpack name ++ " at " ++ showSourcePos pos
+    UndefinedVariable name (Just (startPos, _)) -> "UndefinedVariable " ++ T.unpack name ++ " at " ++ showSourcePos startPos
     ArityMismatch name expected actual Nothing -> "ArityMismatch " ++ T.unpack name ++ " expected " ++ show expected ++ " but got " ++ show actual
-    ArityMismatch name expected actual (Just pos) -> "ArityMismatch " ++ T.unpack name ++ " expected " ++ show expected ++ " but got " ++ show actual ++ " at " ++ showSourcePos pos
+    ArityMismatch name expected actual (Just (startPos, _)) -> "ArityMismatch " ++ T.unpack name ++ " expected " ++ show expected ++ " but got " ++ show actual ++ " at " ++ showSourcePos startPos
     TypeVariableNotInScope name Nothing -> "TypeVariableNotInScope " ++ T.unpack name
-    TypeVariableNotInScope name (Just pos) -> "TypeVariableNotInScope " ++ T.unpack name ++ " at " ++ showSourcePos pos
+    TypeVariableNotInScope name (Just (startPos, _)) -> "TypeVariableNotInScope " ++ T.unpack name ++ " at " ++ showSourcePos startPos
     where
       showSourcePos pos = T.unpack (T.pack (sourceName pos)) ++ ":" ++ show (unPos (sourceLine pos)) ++ ":" ++ show (unPos (sourceColumn pos))
 
@@ -103,3 +104,8 @@ syntaxVarianceToVariance = \case
 extractSourcePos :: AST k -> Maybe SourcePos
 extractSourcePos ast = case extractHFix ast of
   Metadata startPos _ -> Just startPos
+
+-- Extract source position range from AST node
+extractSourcePosRange :: AST k -> Maybe (SourcePos, SourcePos)
+extractSourcePosRange ast = case extractHFix ast of
+  Metadata startPos endPos -> Just (startPos, endPos)

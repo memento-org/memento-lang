@@ -7,6 +7,8 @@ module Language.Memento.TypeSolver.Subtype (isSubtype) where
 import           Control.Monad                              (zipWithM)
 import           Data.Map                                   (Map)
 import qualified Data.Map                                   as Map
+import           Data.Set                                   (Set)
+import qualified Data.Set                                   as Set
 import           Data.Text                                  (Text)
 import           Language.Memento.Data.Environment.Ty       (TyCons)
 import           Language.Memento.Data.Environment.Variance (Variance (..))
@@ -14,14 +16,17 @@ import           Language.Memento.Data.Functor.FixedPoint   (injectFix,
                                                              projectFix)
 import           Language.Memento.Data.Ty                   (Literal (..), Ty,
                                                              TyF (..))
+import           Language.Memento.TypeSolver.Utils          (isGeneric)
 import           Language.Memento.Typing.Core               (TypingError (..))
+import           Language.Memento.Util                      (someM)
 
 -- | Check if t1 is a subtype of t2
-isSubtype :: TyCons Variance -> Map Text (Ty, Ty) -> Ty -> Ty -> Either TypingError Bool
-isSubtype variances bounds t1 t2 = go t1 t2
+isSubtype :: TyCons Variance -> Map Text (Set Ty, Set Ty) -> Ty -> Ty -> Either TypingError Bool
+isSubtype variances bounds = go
   where
     go :: Ty -> Ty -> Either TypingError Bool
-    go ty1 ty2 = case (projectFix ty1, projectFix ty2) of
+    go ty1 ty2 = -- traceShow (ty1, ty2) $
+     case (projectFix ty1, projectFix ty2) of
       (Just t1F, Just t2F) -> subtypeCheck t1F t2F
       _                    -> Right False  -- Should not happen for Ty since it only contains TyF
 
@@ -60,25 +65,27 @@ isSubtype variances bounds t1 t2 = go t1 t2
 
       -- Union subtyping: TUnion ts1 <: t2 iff all ts in ts1, ts <: t2
       (TUnion ts1, _) -> do
-        results <- mapM (`go` t2) ts1
+        results <- mapM (`go` injectFix t2F) ts1
         return $ and results
 
       -- Intersection subtyping: t1 <: TIntersection ts2 iff for all ts in ts2, t1 <: ts
       (_, TIntersection ts2) -> do
-        results <- mapM (go t1) ts2
+        results <- mapM (go $ injectFix t1F) ts2
         return $ and results
 
       -- t1 <: TUnion ts2 iff exists ts in ts2 such that t1 <: ts
       (_, TUnion ts2) -> do
-        results <- mapM (go t1) ts2
+        results <- mapM (go $ injectFix t1F) ts2
         return $ or results
 
       -- TIntersection ts1 <: t2 iff exists ts in ts1 such that ts <: t2
       (TIntersection ts1, _) -> do
-        results <- mapM (`go` t2) ts1
+        results <- mapM (`go` injectFix t2F) ts1
         return $ or results
 
       -- Generic subtyping
+      -- ジェネリクスの連鎖は本来はグラフでやるべき
+      -- 今は一段階、もしくは具体的な上界と下界のみで判断している
       (TGeneric name1, TGeneric name2)
         | name1 == name2 -> Right True
         | otherwise -> do
@@ -86,16 +93,25 @@ isSubtype variances bounds t1 t2 = go t1 t2
             let (lower2, _) = lookupGenericBounds name2 bounds
             let tGeneric2 = injectFix $ TGeneric name2
             let tGeneric1 = injectFix $ TGeneric name1
-            -- Check if name2 is in upper bounds of name1 OR name1 is in lower bounds of name2
-            return $ upper1 == tGeneric2 || lower2 == tGeneric1
+            let t1F' = injectFix t1F
+            let t2F' = injectFix t2F
+            let easyCheck = Set.member tGeneric2 upper1 || Set.member tGeneric1 lower2
+            if easyCheck
+              then Right True
+              else do
+                    let upper1WithoutTGeneric = Set.filter (not . isGeneric) upper1
+                    let lower2WithoutTGeneric = Set.filter (not . isGeneric) lower2
+                    results1 <- someM (`go` t2F') $ Set.toList upper1WithoutTGeneric
+                    results2 <- someM (go t1F') $ Set.toList lower2WithoutTGeneric
+                    return $ results1 || results2
 
       (TGeneric name, _) -> do
         let (_, upper) = lookupGenericBounds name bounds
-        go upper t2
+        someM (`go` injectFix t2F) $ Set.toList $ Set.filter (not . isGeneric) upper
 
       (_, TGeneric name) -> do
         let (lower, _) = lookupGenericBounds name bounds
-        go t1 lower
+        someM (go $ injectFix t1F) $ Set.toList $ Set.filter (not . isGeneric) lower
 
       -- Type application subtyping
       (TApplication name1 args1, TApplication name2 args2)
@@ -127,14 +143,6 @@ isSubtype variances bounds t1 t2 = go t1 t2
       return $ result && rest
     checkArgsWithVarList _ _ _ = Right False
 
--- | Create a TNever type
-tNever :: Ty
-tNever = injectFix TNever
-
--- | Create a TUnknown type
-tUnknown :: Ty
-tUnknown = injectFix TUnknown
-
 -- | Lookup generic bounds, defaulting to (never, unknown)
-lookupGenericBounds :: Text -> Map Text (Ty, Ty) -> (Ty, Ty)
-lookupGenericBounds = Map.findWithDefault (tNever, tUnknown)
+lookupGenericBounds :: Text -> Map Text (Set Ty, Set Ty) -> (Set Ty, Set Ty)
+lookupGenericBounds = Map.findWithDefault (Set.empty, Set.empty)

@@ -1,11 +1,24 @@
 // Data definition
-data Option<auto> {
+data Option<out> {
   fn Some<T>(value: T) -> Option<T>,
   fn None<T>() -> Option<T>,
 };
 
-// Value definition
+data Consumer<in> {
+  fn mk_consumer<T>(consumer : fn (x: T) -> number)
+      -> Consumer<T>,
+};
 
+// Test variance error: marking as covariant when used invariantly  
+data Box<out> {
+  fn MakeBox<T>(value: T, setter: fn (x: T) -> T) -> Box<T>,
+};
+
+val consumer : Consumer<number> = mk_consumer(fn (x) -> x + 1);
+
+val consumer2 : Consumer<never> = consumer;
+
+// Value definition
 val x : Option<number> = Some(42);
 
 // subtyping
@@ -14,11 +27,9 @@ val y : Option<unknown> = x;
 
 // Function definition
 
-fn add(a: number, b: number) -> number {
-  a + b
-};
-
-
+// fn add(a: number, b: number) -> number {
+//   a + b
+// };
 
 // Type definition
 
@@ -32,7 +43,7 @@ val increment : fn (x : number) -> number
 val result : number = {
   let a = 10;
   let b = 20;
-  add(a, b)
+  a + b
 };
 
 // Switch expression
@@ -66,15 +77,13 @@ fn map<T, U>(f: fn (x : T) -> U, opt: Option<T>) -> Option<U> {
 };
 
 
-/*
 // Pattern matching
-fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
-  switch (opt) {
-    case (Some(value)) -> value,
-    case (None()) -> default
-  }
-};
-*/
+// fn unwrapOr<T>(opt: Option<T>, default: T) -> T {
+//   switch (opt) {
+//     case (Some(value)) -> value,
+//     case (None()) -> default
+//   }
+// };
 
 fn main() -> number {
   id(42)

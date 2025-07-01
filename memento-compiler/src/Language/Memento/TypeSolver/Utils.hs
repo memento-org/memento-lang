@@ -1,9 +1,10 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
 
-module Language.Memento.TypeSolver.Utils 
+module Language.Memento.TypeSolver.Utils
   ( -- Type checking predicates
     isNever
-  , isUnknown 
+  , isUnknown
   , isGeneric
   , containsGeneric
   , isTrivialConstraint
@@ -28,14 +29,18 @@ module Language.Memento.TypeSolver.Utils
   , getNestedVars
   ) where
 
-import           Data.Set                                      (Set)
-import qualified Data.Set                                      as Set
-import           Language.Memento.Data.Environment.Variance   (Variance (..))
-import           Language.Memento.Data.Functor.FixedPoint     (injectFix,
-                                                               projectFix)
-import           Language.Memento.Data.Ty                     (Ty, TyF (..), TyVarF (..), 
-                                                               TyVariable, UnsolvedTy, typeVars)
-import           Language.Memento.TypeSolver.Data.Constraint  (Constraint (..))
+import           Data.Set                                    (Set)
+import qualified Data.Set                                    as Set
+import           Language.Memento.Data.Environment.Variance  (Variance (..))
+import           Language.Memento.Data.Functor.Coproduct     (Injective)
+import           Language.Memento.Data.Functor.FixedPoint    (Fix, injectFix,
+                                                              projectFix)
+import           Language.Memento.Data.Ty                    (Ty, TyF (..),
+                                                              TyVarF (..),
+                                                              TyVariable,
+                                                              UnsolvedTy,
+                                                              typeVars)
+import           Language.Memento.TypeSolver.Data.Constraint (Constraint (..))
 
 -- | Check if a type is TNever
 isNever :: UnsolvedTy -> Bool
@@ -50,7 +55,7 @@ isUnknown ty = case projectFix ty of
   _             -> False
 
 -- | Check if a type is a generic
-isGeneric :: UnsolvedTy -> Bool
+isGeneric :: (Injective TyF t) => Fix t -> Bool
 isGeneric ty = case projectFix ty of
   Just (TGeneric _) -> True
   _                 -> False
@@ -119,13 +124,13 @@ partitionFirst f xs = go f xs []
 isFunctionType :: UnsolvedTy -> Bool
 isFunctionType ty = case projectFix ty of
   Just (TFunction _ _) -> True
-  _                   -> False
+  _                    -> False
 
 -- | Check if type is a type application
 isApplicationType :: UnsolvedTy -> Bool
 isApplicationType ty = case projectFix ty of
   Just (TApplication _ _) -> True
-  _                      -> False
+  _                       -> False
 
 -- | Extract type variable from UnsolvedTy if it is one
 isTyVarType :: UnsolvedTy -> Maybe TyVariable

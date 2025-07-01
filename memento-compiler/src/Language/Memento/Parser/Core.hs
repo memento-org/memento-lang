@@ -99,6 +99,83 @@ reservedWords =
   , "out"
   , "inout"
   , "phantom"
+  -- javascript reserved words
+  {-
+  break    case      catch     class     const
+continue debugger  default   delete    do
+else     export    extends   finally   for
+function if        import    in        instanceof
+new      return    super     switch    this
+throw    try       typeof    var       void
+while    with      yield
+  -}
+  , "break"
+  , "case"
+  , "catch"
+  , "class"
+  , "const"
+  , "continue"
+  , "debugger"
+  , "default"
+  , "delete"
+  , "do"
+  , "else"
+  , "export"
+  , "extends"
+  , "finally"
+  , "for"
+  , "function"
+  , "if"
+  , "import"
+  , "in"
+  , "instanceof"
+  , "new"
+  , "return"
+  , "super"
+  , "switch"
+  , "this"
+  , "throw"
+  , "try"
+  , "typeof"
+  , "var"
+  , "void"
+  , "while"
+  , "with"
+  , "yield"
+  -- Javascript literal
+  , "null"
+  , "true"
+  , "false"
+  -- Javascript contextual keywords
+  , "await"
+  , "let"
+  , "yield"
+  -- Javascript future reserved words
+  , "enum"
+  , "implements"
+  , "package"
+  , "private"
+  , "protected"
+  , "public"
+  , "static"
+  , "interface"
+  -- Javascript no-longer reserved words, but here we keep them for compatibility
+  , "abstract"
+  , "boolean"
+  , "byte"
+  , "char"
+  , "double"
+  , "final"
+  , "float"
+  , "goto"
+  , "int"
+  , "long"
+  , "native"
+  , "short"
+  , "synchronized"
+  , "throws"
+  , "transient"
+  , "volatile"
   ]
 
 -- | 予約語

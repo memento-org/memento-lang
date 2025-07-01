@@ -1,21 +1,27 @@
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeApplications  #-}
 
 module Main (main) where
 
+import qualified Data.Text                                  as T
 import qualified Data.Text.IO                               as TIO
 import           Language.Memento.Backend.JS.Codegen        (formatJSProgram)
 import           Language.Memento.Backend.JS.Compile        (compileToJS)
 import           Language.Memento.Data.AST.Tag              (KProgram)
 import           Language.Memento.Data.Environment.Ty       (TyCons)
-import           Language.Memento.Data.Environment.Variance (Variance)
+import           Language.Memento.Data.Environment.Variance (Variance,
+                                                             formatVariance)
 import           Language.Memento.Data.Ty                   (Ty)
 import           Language.Memento.Data.TypedAST             (TypedAST)
 import           Language.Memento.Parser                    (parseAST)
 import           Language.Memento.TypeSolver                (SolveError (..),
                                                              solveTypedAST)
-import           Language.Memento.TypeSolver.SolveVariances (solveVariancesFromEnv)
+import           Language.Memento.TypeSolver.SolveVariances (VarianceError (..),
+                                                             checkVarianceConsistency,
+                                                             solveVariancesFromEnv)
 import           Language.Memento.Typing                    (TypingError,
                                                              typeProgramWithTyCons)
 import           System.Directory                           (createDirectoryIfMissing)
@@ -31,17 +37,19 @@ import           System.Process                             (callProcess)
 import           Text.Megaparsec                            (errorBundlePretty,
                                                              parse)
 
+
 -- | Result of successful compilation pipeline
 data CompilationResult = CompilationResult
-  { crTypedAST :: TypedAST Ty KProgram
-  , crVariances :: TyCons Variance  
+  { crTypedAST  :: TypedAST Ty KProgram
+  , crVariances :: TyCons Variance
   } deriving (Show)
 
 -- | Errors that can occur during compilation pipeline
 data CompilationError
   = ParseError String
-  | TypingError TypingError  
+  | TypingError TypingError
   | SolvingError SolveError
+  | CEVarianceError [VarianceError]
   deriving (Show)
 
 -- | Core compilation pipeline: parse -> type -> solve
@@ -50,10 +58,10 @@ compileMemento :: FilePath -> IO (Either CompilationError CompilationResult)
 compileMemento filePath = do
   -- Read the file
   contents <- TIO.readFile filePath
-  
+
   -- Parse the file
   case parse (parseAST @KProgram) filePath contents of
-    Left errorBundle -> 
+    Left errorBundle ->
       return $ Left $ ParseError $ errorBundlePretty errorBundle
     Right parsedProgram -> do
       -- Type check the AST
@@ -63,13 +71,18 @@ compileMemento filePath = do
         Right (typedProgramWithConstraints, tyConsWithMaybeVariances) -> do
           -- Solve variances
           let solvedVariances = solveVariancesFromEnv tyConsWithMaybeVariances
-          
-          -- Solve type constraints
-          case solveTypedAST solvedVariances typedProgramWithConstraints of
-            Left solveError ->
-              return $ Left $ SolvingError solveError
-            Right fullyTypedProgram ->
-              return $ Right $ CompilationResult fullyTypedProgram solvedVariances
+
+          case checkVarianceConsistency solvedVariances of
+            [] -> do
+              -- Solve type constraints
+              case solveTypedAST solvedVariances typedProgramWithConstraints of
+                Left solveError ->
+                  return $ Left $ SolvingError solveError
+                Right fullyTypedProgram ->
+                  return $ Right $ CompilationResult fullyTypedProgram solvedVariances
+            varianceErrors -> do
+              -- If there are variance errors, return them
+              return $ Left $ CEVarianceError varianceErrors
 
 -- | Generate JavaScript code from compilation result and write to file
 -- This function extracts the common logic shared by compileCommand and runCommand
@@ -77,17 +90,17 @@ generateJavaScript :: CompilationResult -> FilePath -> IO FilePath
 generateJavaScript (CompilationResult fullyTypedProgram _) sourceFilePath = do
   -- Compile to JS IR
   let jsIR = compileToJS fullyTypedProgram
-  
-  -- Generate JavaScript code  
+
+  -- Generate JavaScript code
   let jsCode = formatJSProgram jsIR
   let outputFile = "dist" </> replaceExtension (takeFileName sourceFilePath) ".js"
-  
+
   -- Create dist directory if it doesn't exist
   createDirectoryIfMissing True "dist"
-  
+
   -- Write to output file
   TIO.writeFile outputFile jsCode
-  
+
   return outputFile
 
 -- | Handle compilation errors with appropriate error messages and exit
@@ -108,6 +121,15 @@ handleCompilationError = \case
   SolvingError (UnsolvedVariablesError vars) -> do
     hPutStrLn stderr "Unsolved type variables:"
     hPrint stderr vars
+    exitFailure
+  CEVarianceError varianceErrors -> do
+    hPutStrLn stderr "Variance errors:"
+    mapM_ (\VarianceError{ veTyConsName, veValConsName, veVarianceIdx, veExpectedVariance, veActualVariance } ->
+      hPutStrLn stderr $
+        "  "
+        ++ T.unpack veTyConsName ++ "." ++ T.unpack veValConsName ++ " at index " ++ show veVarianceIdx
+        ++ " : \"" ++ T.unpack (formatVariance veActualVariance) ++ "\" is not subvariance of \"" ++ T.unpack (formatVariance veExpectedVariance) ++ "\""
+        ) varianceErrors
     exitFailure
 
 -- | Main entry point for the Memento compiler
@@ -163,9 +185,9 @@ compileCommand filePath = do
       putStrLn "Parse successful!"
       putStrLn "Type constraint solving successful!"
       putStrLn "Compilation to JS IR successful!"
-      
+
       outputFile <- generateJavaScript compilationResult filePath
-      
+
       putStrLn $ "✓ Successfully compiled to: " ++ outputFile
       putStrLn ""
       exitSuccess
@@ -183,9 +205,9 @@ runCommand filePath = do
       putStrLn "Parse successful!"
       putStrLn "Type constraint solving successful!"
       putStrLn "Compilation to JS IR successful!"
-      
+
       outputFile <- generateJavaScript compilationResult filePath
-      
+
       putStrLn $ "✓ Successfully compiled to: " ++ outputFile
       putStrLn ""
       putStrLn "Running JavaScript:"

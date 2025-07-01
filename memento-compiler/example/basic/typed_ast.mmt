@@ -1,0 +1,26 @@
+data TypedAST<auto> {
+  fn mk_int_lit<T>(value: T) -> TypedAST<T>,
+  fn mk_add(left: TypedAST<int>, right: TypedAST<int>) -> TypedAST<int>,
+  fn mk_eq<T>(left: TypedAST<int>, right: TypedAST<int>) -> TypedAST<bool>,
+  fn mk_if<T>(cond: TypedAST<bool>, then_branch: TypedAST<T>, else_branch: TypedAST<T>)
+    -> TypedAST<T>
+};
+
+fn eval<T>(ast: TypedAST<T>) -> T {
+  switch (ast) {
+    case (mk_int_lit(value)) -> value,
+    case (mk_add(left, right)) -> eval(left) + eval(right),
+    case (mk_eq(left, right)) -> eval(left) == eval(right),
+    case (mk_if(cond, then_branch, else_branch)) ->
+      if(eval(cond)){ eval(then_branch) } else { eval(else_branch) }
+  }
+};
+
+fn main() -> bool {
+  let ast = mk_if(
+    mk_eq(mk_int_lit(1), mk_int_lit(1)),
+    mk_add(mk_int_lit(2), mk_int_lit(3)),
+    mk_int_lit(0)
+  );
+  eval(ast) == 5
+};

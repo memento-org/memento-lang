@@ -30,7 +30,8 @@ import           Language.Memento.Data.AST.Tag                   (KBlock, KExpr,
                                                                   KProgram)
 import           Language.Memento.Data.Functor.FixedPoint        (injectFix)
 import           Language.Memento.Data.Functor.FixedPoint.Higher (safeProjectVia)
-import           Language.Memento.Data.Ty                        (TyF (..),
+import           Language.Memento.Data.Ty                        (Literal (..),
+                                                                  TyF (..),
                                                                   UnsolvedTy)
 import           Language.Memento.Data.TypedAST                  (TyInfo,
                                                                   TypedAST)
@@ -122,10 +123,10 @@ generateExprConstraints ast =
           addConstraint $ rightTy ?<: rightExpected
           addConstraint $ retExpected ?<: exprTy
       ELiteral literalAST -> case safeProjectVia @Syntax literalAST of
-        NumberLiteral _ -> addConstraint $ injectFix TNumber ?<: exprTy
-        IntLiteral _    -> addConstraint $ injectFix TInt ?<: exprTy
-        BoolLiteral _   -> addConstraint $ injectFix TBool ?<: exprTy
-        StringLiteral _ -> addConstraint $ injectFix TString ?<: exprTy
+        NumberLiteral n -> addConstraint $ injectFix (TLiteral $ LNumber n) ?<: exprTy
+        IntLiteral n    -> addConstraint $ injectFix (TLiteral $ LInt n) ?<: exprTy
+        BoolLiteral b   -> addConstraint $ injectFix (TLiteral $ LBool b) ?<: exprTy
+        StringLiteral s -> addConstraint $ injectFix (TLiteral $ LString s) ?<: exprTy
       ELambda params bodyAST ->
         let
           ExprTyInfo bodyTy = safeProjectVia @(TyInfo UnsolvedTy) bodyAST

@@ -87,7 +87,7 @@ import           Language.Memento.Data.TypedAST.TyInfo           (BlockTyInfo (B
 import           Language.Memento.Typing.Core                    (TypingError (..),
                                                                   TypingM,
                                                                   TypingState (..),
-                                                                  extractSourcePos,
+                                                                  extractSourcePosRange,
                                                                   freshGeneric,
                                                                   freshTyVar)
 import           Language.Memento.Typing.Scheme                  (instantiateScheme,
@@ -107,8 +107,8 @@ synTypeToTy ast = case safeProjectVia @Syntax ast of
           in if actualArity == 0 then
             return $ injectFix $ Ty.TApplication name []
           else
-            throwError (ArityMismatch name 0 actualArity (extractSourcePos typeVarAST))
-        _ -> throwError (TypeVariableNotInScope name (extractSourcePos typeVarAST))
+            throwError (ArityMismatch name 0 actualArity (extractSourcePosRange typeVarAST))
+        _ -> throwError (TypeVariableNotInScope name (extractSourcePosRange typeVarAST))
   TNumber -> return $ injectFix Ty.TNumber
   TInt -> return $ injectFix Ty.TInt
   TBool -> return $ injectFix Ty.TBool
@@ -122,10 +122,10 @@ synTypeToTy ast = case safeProjectVia @Syntax ast of
   TLiteral literalAST -> do
     let lit = safeProjectVia @Syntax literalAST
     return $ injectFix $ case lit of
-      NumberLiteral _ -> Ty.TNumber
-      IntLiteral _    -> Ty.TInt
-      BoolLiteral _   -> Ty.TBool
-      StringLiteral _ -> Ty.TString
+      NumberLiteral n -> Ty.TLiteral $ Ty.LNumber n
+      IntLiteral n    -> Ty.TLiteral $ Ty.LInt n
+      BoolLiteral b   -> Ty.TLiteral $ Ty.LBool b
+      StringLiteral s -> Ty.TLiteral $ Ty.LString s
   TUnion types -> do
     typedTypes <- mapM synTypeToTy types
     return $ injectFix $ Ty.TUnion typedTypes
@@ -136,12 +136,12 @@ synTypeToTy ast = case safeProjectVia @Syntax ast of
     let TypeVar name = safeProjectVia @Syntax nameAST
     state <- get
     case Map.lookup name (tsTypeConstructors state) of
-      Nothing -> throwError (UndefinedTypeConstructor name (extractSourcePos nameAST))
+      Nothing -> throwError (UndefinedTypeConstructor name (extractSourcePosRange nameAST))
       Just (variances, _) -> do
         let expectedArity = length variances
         let actualArity = length args
         if expectedArity /= actualArity
-          then throwError (ArityMismatch name expectedArity actualArity (extractSourcePos nameAST))
+          then throwError (ArityMismatch name expectedArity actualArity (extractSourcePosRange nameAST))
           else do
             typedArgs <- mapM synTypeToTy args
             return $ injectFix $ Ty.TApplication name typedArgs
@@ -206,10 +206,10 @@ typeTypeVariable ast = do
 
 getLiteralType :: AST KLiteral -> TypingM UnsolvedTy
 getLiteralType ast = case safeProjectVia @Syntax ast of
-  NumberLiteral _ -> return $ injectFix Ty.TNumber
-  IntLiteral _    -> return $ injectFix Ty.TInt
-  BoolLiteral _   -> return $ injectFix Ty.TBool
-  StringLiteral _ -> return $ injectFix Ty.TString
+  NumberLiteral n -> return $ injectFix $ Ty.TLiteral $ Ty.LNumber n
+  IntLiteral n    -> return $ injectFix $ Ty.TLiteral $ Ty.LInt n
+  BoolLiteral b   -> return $ injectFix $ Ty.TLiteral $ Ty.LBool b
+  StringLiteral s -> return $ injectFix $ Ty.TLiteral $ Ty.LString s
 
 -- Convert optional type annotation to UnsolvedTy
 maybeTypeToUnsolvedTy :: Maybe (AST KType) -> TypingM (Maybe UnsolvedTy)
@@ -378,7 +378,7 @@ typePatternWithType ast maybeExpectedType = case safeProjectVia @Syntax ast of
     let Var consName = safeProjectVia @Syntax consAST
     state <- get
     case findConstructor consName (tsTypeConstructors state) of
-      Nothing -> throwError (UndefinedValueConstructor consName (extractSourcePos consAST))
+      Nothing -> throwError (UndefinedValueConstructor consName (extractSourcePosRange consAST))
       Just (TyConsConstructor _ generics _ _) -> do
         let _ = generics
         typedCons <- typeConsPatternVariable consAST
@@ -395,10 +395,10 @@ typeLiteral ast =
     lit = safeProjectVia @Syntax ast
     meta = extractHFix @Metadata ast
     literalTyInfo = LiteralTyInfo @UnsolvedTy $ injectFix $ case lit of
-      NumberLiteral _ -> Ty.TNumber
-      IntLiteral _    -> Ty.TInt
-      BoolLiteral _   -> Ty.TBool
-      StringLiteral _ -> Ty.TString
+      NumberLiteral n -> Ty.TLiteral $ Ty.LNumber n
+      IntLiteral n    -> Ty.TLiteral $ Ty.LInt n
+      BoolLiteral b   -> Ty.TLiteral $ Ty.LBool b
+      StringLiteral s -> Ty.TLiteral $ Ty.LString s
   in return
     $ HFix
     $ hInject literalTyInfo
@@ -570,7 +570,7 @@ typeVariable varAST = do
     Nothing ->
       -- If not found in local variables, check global definitions
       case Map.lookup name valDefs of
-        Nothing -> throwError $ UndefinedVariable name (extractSourcePos varAST)
+        Nothing -> throwError $ UndefinedVariable name (extractSourcePosRange varAST)
         Just scheme -> do
           inst <- instantiateScheme scheme
           let
@@ -591,7 +591,7 @@ typeConsPatternVariable varAST = do
     valDefs = tsValueDefinitions st
   -- Only check constructors
   case Map.lookup name valDefs of
-      Nothing -> throwError $ UndefinedVariable name (extractSourcePos varAST)
+      Nothing -> throwError $ UndefinedVariable name (extractSourcePosRange varAST)
       Just scheme -> do
         inst <- instantiateSchemeWithGenerics scheme
         let
@@ -630,7 +630,7 @@ typeTopLevelVariable varAST = do
     var@(Var name) = safeProjectVia @Syntax varAST
     valDefs = tsValueDefinitions st
   case Map.lookup name valDefs of
-    Nothing -> throwError $ UndefinedVariable name (extractSourcePos varAST)
+    Nothing -> throwError $ UndefinedVariable name (extractSourcePosRange varAST)
     Just (TypeScheme _ varTy) -> do
       let
         meta = extractHFix @Metadata varAST

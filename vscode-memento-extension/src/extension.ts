@@ -59,7 +59,19 @@ export function activate(context: vscode.ExtensionContext) {
     console.log("Test command executed");
   });
 
+  // Register restart LSP command
+  const restartCommand = vscode.commands.registerCommand("memento.restartLSP", async () => {
+    vscode.window.showInformationMessage("Restarting Memento Language Server...");
+    
+    if (client) {
+      await client.stop();
+      await client.start();
+      vscode.window.showInformationMessage("Memento Language Server restarted successfully");
+    }
+  });
+
   context.subscriptions.push(testCommand);
+  context.subscriptions.push(restartCommand);
 
   console.log("Memento LSP client started");
 }
